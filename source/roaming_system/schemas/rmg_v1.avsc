@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "RoamingEvent",
+  "namespace": "datamind.ai.roaming",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": "string"},
+    {"name": "phone_number", "type": "string"},
+    {"name": "roaming_country", "type": "string"},
+    {"name": "roaming_operator", "type": "string"},
+    {"name": "roaming_type", "type": "string"},
+    {"name": "duration_seconds", "type": "int"},
+    {"name": "data_used_mb", "type": "double"},
+    {"name": "roaming_charges", "type": "double"},
+    {"name": "status", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "seasonal_multiplier", "type": "double"}
+  ]
+}

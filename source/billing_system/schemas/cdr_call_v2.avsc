@@ -1,0 +1,28 @@
+{
+  "type": "record",
+  "name": "CallCDR",
+  "namespace": "datamind.ai.billing",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "from", "type": {"type": "record", "name": "Party", "fields": [
+      {"name": "phone_number", "type": ["null", "string"], "default": null},
+      {"name": "cell_site", "type": ["null", "string"], "default": null},
+      {"name": "imei", "type": ["null", "string"], "default": null}
+    ]}},
+    {"name": "to", "type": "Party"},
+    {"name": "call_duration_seconds", "type": ["null", "int"], "default": null},
+    {"name": "status", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "call_type", "type": "string"},
+    {"name": "phone_number", "type": ["null", "string"], "default": null},
+    {"name": "customer", "type": ["null", "string"], "default": null},
+    {"name": "behavior_profile", "type": ["null", "string"], "default": null},
+    {"name": "seasonal_multiplier", "type": "double"},
+    {"name": "billing_info", "type": {"type": "record", "name": "BillingInfo", "fields": [
+      {"name": "amount", "type": "double"}, {"name": "currency", "type": "string"}
+    ]}},
+    {"name": "fraud_indicator", "type": ["null", "string"], "default": null},
+    {"name": "risk_score", "type": ["null", "int"], "default": null}
+  ]
+}

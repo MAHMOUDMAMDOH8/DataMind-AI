@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "NetworkMetric",
+  "namespace": "datamind.ai.nms",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "cell_site_id", "type": "string"},
+    {"name": "city", "type": "string"},
+    {"name": "region", "type": "string"},
+    {"name": "network_type", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "active_subscribers", "type": "int"},
+    {"name": "total_throughput_mbps", "type": "double"},
+    {"name": "cpu_utilization_pct", "type": "double"},
+    {"name": "memory_utilization_pct", "type": "double"}
+  ]
+}

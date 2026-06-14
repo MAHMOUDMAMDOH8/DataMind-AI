@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "RechargeEvent",
+  "namespace": "datamind.ai.recharge",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": "string"},
+    {"name": "recharge_amount", "type": "double"},
+    {"name": "balance_before", "type": "double"},
+    {"name": "balance_after", "type": "double"},
+    {"name": "payment_method", "type": "string"},
+    {"name": "status", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "phone_number", "type": "string"},
+    {"name": "transaction_id", "type": "string"},
+    {"name": "seasonal_multiplier", "type": "double"}
+  ]
+}

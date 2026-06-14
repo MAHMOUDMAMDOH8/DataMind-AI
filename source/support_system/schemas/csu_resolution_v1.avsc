@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "TicketResolved",
+  "namespace": "datamind.ai.support",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": "string"},
+    {"name": "phone_number", "type": "string"},
+    {"name": "agent_id", "type": "string"},
+    {"name": "resolution_time_seconds", "type": "int"},
+    {"name": "wait_time_seconds", "type": "int"},
+    {"name": "satisfaction_score", "type": ["null", "int"], "default": null},
+    {"name": "first_call_resolution", "type": "boolean"},
+    {"name": "escalated", "type": "boolean"},
+    {"name": "call_back_requested", "type": "boolean"},
+    {"name": "timestamp", "type": "string"}
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "PaymentEvent",
+  "namespace": "datamind.ai.payment",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": ["null", "string"], "default": null},
+    {"name": "payment_type", "type": "string"},
+    {"name": "payment_amount", "type": "double"},
+    {"name": "payment_method", "type": "string"},
+    {"name": "status", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "phone_number", "type": ["null", "string"], "default": null},
+    {"name": "transaction_id", "type": "string"},
+    {"name": "invoice_number", "type": ["null", "string"], "default": null},
+    {"name": "seasonal_multiplier", "type": "double"}
+  ]
+}

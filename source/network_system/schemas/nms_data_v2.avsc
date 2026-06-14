@@ -1,0 +1,21 @@
+{
+  "type": "record",
+  "name": "DataSessionEvent",
+  "namespace": "datamind.ai.nms",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": "string"},
+    {"name": "data_used_mb", "type": "double"},
+    {"name": "data_type", "type": "string"},
+    {"name": "network_type", "type": "string"},
+    {"name": "status", "type": "string"},
+    {"name": "phone_number", "type": "string"},
+    {"name": "behavior_profile", "type": ["null", "string"], "default": null},
+    {"name": "session_duration_seconds", "type": "int"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "seasonal_multiplier", "type": "double"},
+    {"name": "fraud_indicator", "type": ["null", "string"], "default": null},
+    {"name": "risk_score", "type": ["null", "int"], "default": null}
+  ]
+}

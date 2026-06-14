@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "CustomerRegistration",
+  "namespace": "datamind.ai.crm",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": "string"},
+    {"name": "phone_number", "type": "string"},
+    {"name": "plan_type", "type": "string"},
+    {"name": "behavior_profile", "type": "string"},
+    {"name": "city", "type": "string"},
+    {"name": "region", "type": "string"},
+    {"name": "registration_date", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "status", "type": "string"},
+    {"name": "channel", "type": "string"},
+    {"name": "seasonal_multiplier", "type": "double"}
+  ]
+}

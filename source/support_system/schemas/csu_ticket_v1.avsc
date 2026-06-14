@@ -1,0 +1,17 @@
+{
+  "type": "record",
+  "name": "SupportTicketCreated",
+  "namespace": "datamind.ai.support",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": "string"},
+    {"name": "phone_number", "type": "string"},
+    {"name": "channel", "type": "string"},
+    {"name": "reason", "type": "string"},
+    {"name": "priority", "type": "string"},
+    {"name": "status", "type": "string"},
+    {"name": "timestamp", "type": "string"},
+    {"name": "ticket_id", "type": "string"}
+  ]
+}

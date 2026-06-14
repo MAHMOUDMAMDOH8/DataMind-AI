@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "CustomerProfileUpdate",
+  "namespace": "datamind.ai.crm",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": "string"},
+    {"name": "phone_number", "type": "string"},
+    {"name": "updated_fields", "type": {"type": "array", "items": "string"}},
+    {"name": "timestamp", "type": "string"},
+    {"name": "seasonal_multiplier", "type": "double"}
+  ]
+}

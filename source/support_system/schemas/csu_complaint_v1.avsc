@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "ComplaintFiled",
+  "namespace": "datamind.ai.support",
+  "fields": [
+    {"name": "event_type", "type": "string"},
+    {"name": "sid", "type": "string"},
+    {"name": "customer", "type": "string"},
+    {"name": "phone_number", "type": "string"},
+    {"name": "complaint_category", "type": "string"},
+    {"name": "severity", "type": "string"},
+    {"name": "description", "type": "string"},
+    {"name": "timestamp", "type": "string"}
+  ]
+}
