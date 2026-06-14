@@ -17,7 +17,7 @@ The platform delivers:
 ## Architecture Summary
 At a high level, the architecture implements a **lakehouse** pattern:
 
-![DataMind AI — Enterprise Architecture](arch.png)
+![DataMind AI — Enterprise Architecture](arch/arch.png)
 
 - **Source Systems**: 7 enterprise telecom applications (CRM, Billing, NMS, Payment Gateway, Recharge, Roaming, Customer Support) publishing events to Kafka
 - **Ingestion**: Kafka → Apache NiFi → MinIO Iceberg Bronze layer
