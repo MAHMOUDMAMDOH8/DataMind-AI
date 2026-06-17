@@ -31,13 +31,13 @@ At a high level, the architecture implements a **lakehouse** pattern:
 
 ## Quick Start
 
-Run the full local platform with Docker Compose (Kafka, NiFi, MinIO, Nessie, Spark, Trino).
+Run the full local platform with Docker Compose — ingestion, lakehouse, processing, query, orchestration, governance, quality, ML, and AI layers.
 
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2
-- ~8 GB free RAM (NiFi and Spark are the heaviest services)
-- Ports available: `2181`, `8080`–`8085`, `8090`, `8443`, `8888`, `9000`, `9001`, `9092`, `10000`, `10001`, `19120`
+- ~16 GB free RAM recommended for the **full** stack (OpenMetadata + Elasticsearch + NiFi + Spark)
+- Ports available: `2181`, `3000`, `5000`, `6333`, `8080`–`8085`, `8090`, `8443`, `8585`, `8888`, `9000`, `9001`, `9092`, `10000`, `10001`, `11434`, `19120`
 
 ### 1. Start the stack
 
@@ -45,7 +45,19 @@ Run the full local platform with Docker Compose (Kafka, NiFi, MinIO, Nessie, Spa
 ./scripts/up.sh
 ```
 
-This starts all four compose profiles: `ingestion`, `storage`, `processing`, `query`.
+This starts all nine compose profiles:
+
+| Profile | Services |
+| ------- | -------- |
+| `ingestion` | Kafka, Zookeeper, Schema Registry, Kafka UI, NiFi |
+| `storage` | MinIO, Nessie, Iceberg REST |
+| `processing` | Spark + Iceberg (Jupyter) |
+| `query` | Trino |
+| `orchestration` | Apache Airflow |
+| `governance` | OpenMetadata |
+| `quality` | Great Expectations gateway |
+| `ml` | MLflow |
+| `ai` | Qdrant + Ollama (local LLM) |
 
 Start a subset if needed:
 
@@ -53,14 +65,28 @@ Start a subset if needed:
 # Ingestion only (Kafka + NiFi)
 docker compose --profile ingestion up -d
 
-# Lakehouse storage (MinIO + Nessie)
-docker compose --profile storage up -d
+# Lakehouse + query
+docker compose --profile storage --profile query up -d
+
+# AI layer only
+docker compose --profile ai up -d
 ```
+
+Note: `ml` profile uses MinIO for artifacts — include `--profile storage` when starting MLflow alone.
 
 ### 2. Verify services
 
 ```bash
+# Test whatever is currently running
 ./scripts/smoke-test.sh
+
+# Require the full stack (all profiles)
+./scripts/smoke-test.sh --strict
+
+# Test a single profile
+./scripts/smoke-test.sh --profile orchestration
+./scripts/smoke-test.sh --profile governance
+./scripts/smoke-test.sh --profile ai
 ```
 
 Full test including Kafka event producers:
@@ -68,7 +94,7 @@ Full test including Kafka event producers:
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r source/requirements.txt
-./scripts/smoke-test.sh --with-producers
+./scripts/smoke-test.sh --strict --with-producers
 ```
 
 ### 3. Publish sample telecom events
@@ -100,6 +126,12 @@ Use `--clean` to disable intentional data-quality defects in generated events.
 | Spark UI | http://localhost:8080 | — |
 | Jupyter | http://localhost:8888 | No token (dev only) |
 | Trino | http://localhost:8085 | Any username in CLI/UI |
+| Airflow | http://localhost:8083 | `airflow` / `airflow` |
+| OpenMetadata | http://localhost:8585 | `admin@open-metadata.org` / `admin` |
+| GX Gateway | http://localhost:3000/health | Great Expectations |
+| MLflow | http://localhost:5000 | Tracking server |
+| Qdrant | http://localhost:6333 | Vector DB REST API |
+| Ollama | http://localhost:11434 | Local LLM (pull models with `ollama pull`) |
 
 Optional: copy `.env.example` to `.env` for local URL defaults.
 
@@ -109,9 +141,12 @@ Optional: copy `.env.example` to `.env` for local URL defaults.
 DataMind-AI/
 ├── arch/                 # Architecture & data model docs
 ├── source/               # Python Kafka producer simulators (7 systems)
-├── docker-compose.yml    # Local infra (profile-based)
+├── docker-compose.yml    # Local infra (9 profiles)
 ├── trino/                # Trino catalog & coordinator config
-├── scripts/              # up.sh, down.sh, smoke-test.sh
+├── airflow/              # Airflow DAGs, logs, plugins
+├── governance/           # OpenMetadata env config
+├── services/gx-gateway/  # Great Expectations health API
+├── scripts/              # up.sh, down.sh, smoke-test.sh, profiles.sh
 └── init/setup.sql        # Initial lakehouse schemas
 ```
 
@@ -413,6 +448,7 @@ AI Applications
 
 | Layer           | Technology         | Local stack |
 | --------------- | ------------------ | ----------- |
+| Orchestration   | Apache Airflow     | Yes         |
 | Streaming       | Apache Kafka       | Yes         |
 | Schema Registry | Confluent          | Yes         |
 | Ingestion       | Apache NiFi        | Yes         |
@@ -421,12 +457,11 @@ AI Applications
 | Storage         | MinIO              | Yes         |
 | Catalog         | Project Nessie     | Yes         |
 | Query Engine    | Trino              | Yes         |
-| Orchestration   | Apache Airflow     | Planned     |
-| Metadata        | OpenMetadata       | Planned     |
-| Data Quality    | Great Expectations | Planned     |
-| ML Platform     | MLflow             | Planned     |
-| Vector Database | Qdrant             | Planned     |
-| LLM Layer       | OpenAI / Ollama    | Planned     |
+| Metadata        | OpenMetadata       | Yes         |
+| Data Quality    | Great Expectations | Yes         |
+| ML Platform     | MLflow             | Yes         |
+| Vector Database | Qdrant             | Yes         |
+| LLM Layer       | Ollama (local) / OpenAI (cloud) | Yes (Ollama) |
 | Language        | Python             | Yes         |
 
 ---
@@ -450,8 +485,8 @@ AI Applications
 **Current phase (implemented locally):**
 
 * Source system simulators (`source/`) — 7 Kafka producers
-* Docker Compose stack — Kafka, Schema Registry, NiFi, MinIO, Nessie, Spark, Trino
-* Smoke tests (`scripts/smoke-test.sh`)
+* Docker Compose stack — all 9 profiles (ingestion → ai)
+* Smoke tests with per-profile support (`scripts/smoke-test.sh`)
 * Architecture & data model documentation (`arch/`)
 
 **Upcoming:**
@@ -459,10 +494,9 @@ AI Applications
 * NiFi flows (Kafka → Iceberg Bronze)
 * Spark ETL pipelines (Bronze → Silver → Gold)
 * Trino semantic layer
-* RAG implementation
+* RAG pipelines (Qdrant + Ollama embeddings)
 * Text-to-SQL service
-* ML platform integration (MLflow, feature store)
-* Airflow orchestration, OpenMetadata, Great Expectations
+* OpenMetadata ingestion connectors (Trino, Kafka, etc.)
 
 ---
 

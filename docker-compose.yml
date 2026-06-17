@@ -1,16 +1,22 @@
 # DataMind AI — local platform stack
 #
 # Profiles:
-#   ingestion  — Kafka, Zookeeper, Schema Registry, Kafka UI, NiFi
-#   storage    — MinIO, Nessie, Iceberg REST fixture
-#   processing — Spark + Iceberg (Jupyter)
-#   query      — Trino SQL engine
+#   ingestion      — Kafka, Zookeeper, Schema Registry, Kafka UI, NiFi
+#   storage        — MinIO, Nessie, Iceberg REST fixture
+#   processing     — Spark + Iceberg (Jupyter)
+#   query          — Trino SQL engine
+#   orchestration  — Apache Airflow
+#   governance     — OpenMetadata (catalog & lineage)
+#   quality        — Great Expectations gateway
+#   ml             — MLflow tracking server
+#   ai             — Qdrant vector DB + Ollama (local LLM)
 #
 # Start everything:
-#   docker compose --profile ingestion --profile storage --profile processing --profile query up -d
+#   ./scripts/up.sh
 #
 # Smoke test:
-#   ./scripts/smoke-test.sh
+#   ./scripts/smoke-test.sh --strict
+#   ./scripts/smoke-test.sh --profile orchestration
 
 name: datamind-ai
 
@@ -332,6 +338,278 @@ services:
       retries: 15
       start_period: 45s
 
+  # ── Orchestration (Apache Airflow) ──────────────────────────────────────────
+
+  airflow-postgres:
+    image: postgres:16
+    container_name: airflow-postgres
+    profiles: ["orchestration"]
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  airflow-init:
+    image: apache/airflow:2.10.4-python3.11
+    container_name: airflow-init
+    profiles: ["orchestration"]
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: 46BKJoQYlPPOexq0OhDZnLXN8zTopXNOCAS3h9gw9UiY=
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: airflow
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    user: "0:0"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/{logs,dags,plugins}
+        chown -R 50000:0 /opt/airflow
+        airflow db migrate
+        airflow users create --role Admin --username airflow --password airflow \
+          --firstname DataMind --lastname Admin --email admin@datamind.ai || true
+    networks:
+      - data_network
+
+  airflow-webserver:
+    image: apache/airflow:2.10.4-python3.11
+    container_name: airflow-webserver
+    profiles: ["orchestration"]
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: 46BKJoQYlPPOexq0OhDZnLXN8zTopXNOCAS3h9gw9UiY=
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: webserver
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    user: "50000:0"
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  airflow-scheduler:
+    image: apache/airflow:2.10.4-python3.11
+    container_name: airflow-scheduler
+    profiles: ["orchestration"]
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: 46BKJoQYlPPOexq0OhDZnLXN8zTopXNOCAS3h9gw9UiY=
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: scheduler
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    user: "50000:0"
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ── Governance (OpenMetadata) ───────────────────────────────────────────────
+
+  openmetadata-mysql:
+    image: docker.getcollate.io/openmetadata/db:1.5.0
+    container_name: openmetadata-mysql
+    profiles: ["governance"]
+    command: "--sort_buffer_size=10M"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - openmetadata_mysql_data:/var/lib/mysql
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "mysql --user=root --password=password --silent --execute 'use openmetadata_db'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  openmetadata-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.2
+    container_name: openmetadata-elasticsearch
+    profiles: ["governance"]
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      xpack.security.enabled: "false"
+    volumes:
+      - openmetadata_es_data:/usr/share/elasticsearch/data
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qE 'green|yellow'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  openmetadata-migrate:
+    image: docker.getcollate.io/openmetadata/server:1.5.0
+    container_name: openmetadata-migrate
+    profiles: ["governance"]
+    command: "./bootstrap/openmetadata-ops.sh migrate"
+    env_file:
+      - ./governance/openmetadata.env
+    depends_on:
+      openmetadata-mysql:
+        condition: service_healthy
+      openmetadata-elasticsearch:
+        condition: service_healthy
+    networks:
+      - data_network
+    restart: "no"
+
+  openmetadata-server:
+    image: docker.getcollate.io/openmetadata/server:1.5.0
+    container_name: openmetadata-server
+    profiles: ["governance"]
+    env_file:
+      - ./governance/openmetadata.env
+    depends_on:
+      openmetadata-migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8585:8585"
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8585/api/v1/system/version || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+
+  # ── Data quality (Great Expectations) ───────────────────────────────────────
+
+  gx-gateway:
+    build: ./services/gx-gateway
+    container_name: gx-gateway
+    profiles: ["quality"]
+    ports:
+      - "3000:3000"
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── ML platform (MLflow) ────────────────────────────────────────────────────
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.18.0
+    container_name: mlflow
+    profiles: ["ml"]
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root s3://warehouse/mlflow/
+    environment:
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── AI layer (Qdrant + Ollama) ──────────────────────────────────────────────
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: qdrant
+    profiles: ["ai"]
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    profiles: ["ai"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
 networks:
   data_network:
     name: datamind_data_network
@@ -349,3 +627,9 @@ volumes:
   zookeeper_logs:
   kafka_data:
   spark_shared:
+  airflow_postgres_data:
+  openmetadata_mysql_data:
+  openmetadata_es_data:
+  mlflow_data:
+  qdrant_data:
+  ollama_data:

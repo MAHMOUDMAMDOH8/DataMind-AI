@@ -2,19 +2,44 @@
 # DataMind AI — infrastructure smoke test
 #
 # Usage:
-#   ./scripts/smoke-test.sh
-#   ./scripts/smoke-test.sh --with-producers   # also publish Kafka events
+#   ./scripts/smoke-test.sh                    # test running services (skip stopped)
+#   ./scripts/smoke-test.sh --strict           # require full stack from ./scripts/up.sh
+#   ./scripts/smoke-test.sh --profile ml       # test one profile only
+#   ./scripts/smoke-test.sh --with-producers   # publish sample Kafka events
+#   ./scripts/smoke-test.sh --all-profiles     # run each profile group sequentially
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WITH_PRODUCERS=false
+# shellcheck source=profiles.sh
+source "$ROOT/scripts/profiles.sh"
 
-for arg in "$@"; do
-  case "$arg" in
+WITH_PRODUCERS=false
+STRICT=false
+ALL_PROFILES_MODE=false
+SELECTED_PROFILE=""
+
+args=("$@")
+i=0
+while [ $i -lt ${#args[@]} ]; do
+  case "${args[$i]}" in
     --with-producers) WITH_PRODUCERS=true ;;
+    --strict) STRICT=true ;;
+    --all-profiles) ALL_PROFILES_MODE=true ;;
+    --profile)
+      i=$((i + 1))
+      SELECTED_PROFILE="${args[$i]:-}"
+      ;;
+    --profile=*) SELECTED_PROFILE="${args[$i]#--profile=}" ;;
   esac
+  i=$((i + 1))
 done
+
+if [ -n "$SELECTED_PROFILE" ] && ! profile_services "$SELECTED_PROFILE" >/dev/null 2>&1; then
+  echo "Unknown profile: $SELECTED_PROFILE"
+  echo "Valid profiles: ${ALL_PROFILES[*]}"
+  exit 2
+fi
 
 PASS=0
 FAIL=0
@@ -55,129 +80,136 @@ wait_http() {
   return 1
 }
 
+is_running() {
+  docker compose ps --status running --format '{{.Name}}' 2>/dev/null | grep -qx "$1"
+}
+
+profiles_to_test() {
+  if [ -n "$SELECTED_PROFILE" ]; then
+    echo "$SELECTED_PROFILE"
+    return
+  fi
+  if [ "$ALL_PROFILES_MODE" = true ] || [ "$STRICT" = true ]; then
+    printf '%s\n' "${ALL_PROFILES[@]}"
+    return
+  fi
+  printf '%s\n' "${ALL_PROFILES[@]}"
+}
+
+test_container() {
+  local svc="$1"
+  local profile="$2"
+  if is_running "$svc"; then
+    check "[$profile] $svc running" true
+    return 0
+  fi
+  if [ "$STRICT" = true ] || [ -n "$SELECTED_PROFILE" ]; then
+    check "[$profile] $svc running" false
+  else
+    skip "[$profile] $svc (not running)"
+  fi
+  return 1
+}
+
+test_endpoints_for_profile() {
+  local profile="$1"
+  local any_running=false
+  local svc
+  for svc in $(profile_services "$profile"); do
+    if is_running "$svc"; then
+      any_running=true
+      break
+    fi
+  done
+  if [ "$any_running" = false ]; then
+    return 0
+  fi
+
+  while IFS='|' read -r name target retries; do
+    [ -z "$name" ] && continue
+    retries="${retries:-5}"
+    if [[ "$target" == http* ]]; then
+      check "[$profile] $name" wait_http "$target" "$retries"
+    else
+      check "[$profile] $name" bash -c "$target"
+    fi
+  done < <(profile_endpoints "$profile")
+}
+
+test_profile() {
+  local profile="$1"
+  echo
+  echo "── profile: $profile ──"
+
+  local svc
+  for svc in $(profile_services "$profile"); do
+    test_container "$svc" "$profile" || true
+  done
+
+  test_endpoints_for_profile "$profile"
+
+  case "$profile" in
+    storage)
+      if is_running mc; then
+        for bucket in warehouse telecom-bronze telecom-silver telecom-gold landing; do
+          check "[$profile] MinIO bucket: $bucket" \
+            bash -c "docker exec mc mc ls minio/${bucket} >/dev/null 2>&1"
+        done
+      fi
+      ;;
+    query)
+      if is_running trino; then
+        check "[$profile] Trino CREATE SCHEMA iceberg.bronze" \
+          bash -c 'docker exec trino trino --server localhost:8080 --user smoke --execute "CREATE SCHEMA IF NOT EXISTS iceberg.bronze" >/dev/null 2>&1'
+      fi
+      ;;
+    ingestion)
+      if [ "$WITH_PRODUCERS" = true ] && is_running kafka; then
+        PYTHON=""
+        if [ -x "$ROOT/.venv/bin/python" ]; then
+          PYTHON="$ROOT/.venv/bin/python"
+        elif python3 -c "import kafka" 2>/dev/null; then
+          PYTHON="python3"
+        fi
+        if [ -n "$PYTHON" ]; then
+          check "[$profile] Publish sample events" \
+            bash -c "cd '$ROOT/source' && '$PYTHON' -m runners.run_all --rate 10 --duration-seconds 5 --bootstrap-servers localhost:9092 --clean"
+        else
+          skip "[$profile] Publish sample events (create .venv and pip install -r source/requirements.txt)"
+        fi
+        local topic
+        for topic in customer_topic calls_topic sms_topic data_usage_topic network_metrics_topic payments_topic recharge_topic roaming_topic tickets_topic; do
+          check "[$profile] Kafka topic: $topic" \
+            bash -c "docker exec kafka kafka-topics --bootstrap-server localhost:9092 --list 2>/dev/null | grep -qx '$topic'"
+        done
+      elif [ "$WITH_PRODUCERS" = true ]; then
+        skip "[$profile] Kafka producers (kafka not running)"
+      fi
+      ;;
+  esac
+}
+
 echo "=============================================="
 echo " DataMind AI — Smoke Test"
 echo "=============================================="
-echo
-
 cd "$ROOT"
 
-# ── Container health ──────────────────────────────────────────────────────────
-echo "[1/4] Docker services"
-
-EXPECTED=(
-  zookeeper
-  kafka
-  schema-registry
-  kafka-ui
-  nifi
-  minio
-  mc
-  nessie-postgres
-  nessie
-  iceberg-rest
-  spark-iceberg
-  trino
-)
-
-for svc in "${EXPECTED[@]}"; do
-  if docker compose ps --status running --format '{{.Name}}' 2>/dev/null | grep -qx "$svc"; then
-    check "$svc container running" true
-  else
-    check "$svc container running" false
-  fi
-done
-
-echo
-echo "[2/4] HTTP / API endpoints"
-
-check "Kafka broker API" \
-  bash -c 'docker exec kafka kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1'
-
-check "Schema Registry" \
-  wait_http "http://localhost:8081/subjects" 5
-
-check "Kafka UI" \
-  wait_http "http://localhost:8090" 5
-
-check "NiFi UI" \
-  wait_http "http://localhost:8082/nifi" 30
-
-check "MinIO health" \
-  wait_http "http://localhost:9000/minio/health/live" 5
-
-check "Nessie API" \
-  wait_http "http://localhost:19120/api/v2/config" 5
-
-check "Iceberg REST catalog" \
-  wait_http "http://localhost:8181/v1/config" 5
-
-check "Spark UI" \
-  wait_http "http://localhost:8080" 5
-
-check "Trino coordinator" \
-  wait_http "http://localhost:8085/v1/info" 5
-
-echo
-echo "[3/4] MinIO buckets"
-
-for bucket in warehouse telecom-bronze telecom-silver telecom-gold landing; do
-  check "MinIO bucket: $bucket" \
-    bash -c "docker exec mc mc ls minio/${bucket} >/dev/null 2>&1"
-done
-
-echo
-echo "[4/4] Kafka topics + producers"
-
-TOPICS=(
-  customer_topic
-  calls_topic
-  sms_topic
-  data_usage_topic
-  network_metrics_topic
-  payments_topic
-  recharge_topic
-  roaming_topic
-  tickets_topic
-)
-
-if [ "$WITH_PRODUCERS" = true ]; then
-  PYTHON=""
-  if [ -x "$ROOT/.venv/bin/python" ]; then
-    PYTHON="$ROOT/.venv/bin/python"
-  elif python3 -c "import kafka" 2>/dev/null; then
-    PYTHON="python3"
-  fi
-  if [ -n "$PYTHON" ]; then
-    check "Publish sample events (run_all)" \
-      bash -c "cd '$ROOT/source' && '$PYTHON' -m runners.run_all --rate 10 --duration-seconds 5 --bootstrap-servers localhost:9092 --clean"
-  else
-    skip "Publish sample events (run: python3 -m venv .venv && .venv/bin/pip install -r source/requirements.txt)"
-  fi
+if [ "$ALL_PROFILES_MODE" = true ]; then
+  echo "Mode: all profiles (sequential)"
+elif [ -n "$SELECTED_PROFILE" ]; then
+  echo "Mode: profile=$SELECTED_PROFILE"
+elif [ "$STRICT" = true ]; then
+  echo "Mode: strict (full stack)"
 else
-  skip "Publish sample events (pass --with-producers to enable)"
+  echo "Mode: running services only"
 fi
 
-for topic in "${TOPICS[@]}"; do
-  if docker exec kafka kafka-topics --bootstrap-server localhost:9092 --list 2>/dev/null | grep -qx "$topic"; then
-    check "Kafka topic exists: $topic" true
-  else
-    # Topics are auto-created on first publish; verify broker can describe topic after producer run
-    if [ "$WITH_PRODUCERS" = true ]; then
-      check "Kafka topic exists: $topic" \
-        docker exec kafka kafka-topics --bootstrap-server localhost:9092 --list 2>/dev/null | grep -qx "$topic"
-    else
-      skip "Kafka topic: $topic (created on first publish)"
-    fi
+while IFS= read -r profile; do
+  if [ -n "$SELECTED_PROFILE" ] && [ "$profile" != "$SELECTED_PROFILE" ]; then
+    continue
   fi
-done
-
-# Trino SQL smoke (create schema via CLI inside container)
-echo
-echo "[bonus] Trino SQL"
-
-check "Trino CREATE SCHEMA iceberg.bronze" \
-  bash -c 'docker exec trino trino --server localhost:8080 --user smoke --execute "CREATE SCHEMA IF NOT EXISTS iceberg.bronze" >/dev/null 2>&1'
+  test_profile "$profile"
+done < <(profiles_to_test)
 
 echo
 echo "=============================================="
