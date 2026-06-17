@@ -17,10 +17,10 @@ ALL_PROFILES=(
 profile_services() {
   case "$1" in
     ingestion)
-      echo "zookeeper kafka schema-registry kafka-ui nifi"
+      echo "kafka schema-registry kafka-ui nifi"   # zookeeper removed (KRaft)
       ;;
     storage)
-      echo "minio mc nessie-postgres nessie iceberg-rest"
+      echo "minio mc shared-postgres nessie iceberg-rest"   # nessie-postgres → shared-postgres
       ;;
     processing)
       echo "spark-iceberg"
@@ -29,7 +29,7 @@ profile_services() {
       echo "trino"
       ;;
     orchestration)
-      echo "airflow-postgres airflow-webserver airflow-scheduler"
+      echo "shared-postgres airflow-init airflow-webserver airflow-scheduler"   # airflow-postgres → shared-postgres
       ;;
     governance)
       echo "openmetadata-mysql openmetadata-elasticsearch openmetadata-server"

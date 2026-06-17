@@ -255,7 +255,7 @@ services:
       retries: 10
 
   nessie:
-    image: projectnessie/nessie:0.101.3   # pinned (was: latest)
+    image: ghcr.io/projectnessie/nessie:0.108.0   # pinned — Docker Hub deprecated, use ghcr.io
     container_name: nessie
     profiles: ["storage"]
     depends_on:
