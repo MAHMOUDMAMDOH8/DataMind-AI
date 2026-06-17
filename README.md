@@ -27,6 +27,95 @@ At a high level, the architecture implements a **lakehouse** pattern:
 - **AI**: Feature store patterns, model training/serving, and GenAI services with validation/guardrails
 - **Governance/Security**: centralized catalog, access controls, lineage, and auditability end-to-end
 
+---
+
+## Quick Start
+
+Run the full local platform with Docker Compose (Kafka, NiFi, MinIO, Nessie, Spark, Trino).
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2
+- ~8 GB free RAM (NiFi and Spark are the heaviest services)
+- Ports available: `2181`, `8080`–`8085`, `8090`, `8443`, `8888`, `9000`, `9001`, `9092`, `10000`, `10001`, `19120`
+
+### 1. Start the stack
+
+```bash
+./scripts/up.sh
+```
+
+This starts all four compose profiles: `ingestion`, `storage`, `processing`, `query`.
+
+Start a subset if needed:
+
+```bash
+# Ingestion only (Kafka + NiFi)
+docker compose --profile ingestion up -d
+
+# Lakehouse storage (MinIO + Nessie)
+docker compose --profile storage up -d
+```
+
+### 2. Verify services
+
+```bash
+./scripts/smoke-test.sh
+```
+
+Full test including Kafka event producers:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r source/requirements.txt
+./scripts/smoke-test.sh --with-producers
+```
+
+### 3. Publish sample telecom events
+
+```bash
+cd source
+python -m runners.run_all --rate 20 --duration-seconds 60 --bootstrap-servers localhost:9092
+```
+
+Use `--clean` to disable intentional data-quality defects in generated events.
+
+### 4. Stop the stack
+
+```bash
+./scripts/down.sh
+```
+
+### Local service URLs
+
+| Service | URL | Notes |
+| ------- | --- | ----- |
+| Kafka | `localhost:9092` | Bootstrap for producers |
+| Schema Registry | http://localhost:8081 | Avro schemas (future) |
+| Kafka UI | http://localhost:8090 | Topic browser |
+| NiFi | http://localhost:8082/nifi | `admin` / see `docker-compose.yml` |
+| MinIO Console | http://localhost:9001 | `admin` / `password` |
+| Nessie | http://localhost:19120 | Iceberg catalog API |
+| Iceberg REST | http://localhost:8181 | PyIceberg / Spark catalog |
+| Spark UI | http://localhost:8080 | — |
+| Jupyter | http://localhost:8888 | No token (dev only) |
+| Trino | http://localhost:8085 | Any username in CLI/UI |
+
+Optional: copy `.env.example` to `.env` for local URL defaults.
+
+### Repository layout
+
+```text
+DataMind-AI/
+├── arch/                 # Architecture & data model docs
+├── source/               # Python Kafka producer simulators (7 systems)
+├── docker-compose.yml    # Local infra (profile-based)
+├── trino/                # Trino catalog & coordinator config
+├── scripts/              # up.sh, down.sh, smoke-test.sh
+└── init/setup.sql        # Initial lakehouse schemas
+```
+
+---
 
 # DataMind AI
 
@@ -40,7 +129,7 @@ DataMind AI is a modern enterprise-scale Data + AI platform designed to process 
 
 The platform combines real-time streaming, lakehouse architecture, analytics engineering, machine learning, and generative AI capabilities into a unified ecosystem.
 
-DataMind AI demonstrates how a modern organization can transform raw operational events into trusted analytics, predictive intelligence, and AI-powered experiences.
+A **runnable local stack** (Docker Compose) and **Python source simulators** are included so you can publish telecom events to Kafka and exercise MinIO, Nessie, Spark, and Trino on your machine. See [Quick Start](#quick-start) above.
 
 ---
 
@@ -92,6 +181,7 @@ Each system produces business events independently and publishes them to Kafka t
 Technologies:
 
 * Apache Kafka
+* Confluent Schema Registry
 * Apache NiFi
 
 Responsibilities:
@@ -321,22 +411,23 @@ AI Applications
 
 ## Technology Stack
 
-| Layer           | Technology         |
-| --------------- | ------------------ |
-| Orchestration   | Apache Airflow     |
-| Streaming       | Apache Kafka       |
-| Ingestion       | Apache NiFi        |
-| Processing      | Apache Spark       |
-| Lakehouse       | Apache Iceberg     |
-| Storage         | MinIO              |
-| Catalog         | Project Nessie     |
-| Query Engine    | Trino              |
-| Metadata        | OpenMetadata       |
-| Data Quality    | Great Expectations |
-| ML Platform     | MLflow             |
-| Vector Database | Qdrant             |
-| LLM Layer       | OpenAI / Ollama    |
-| Language        | Python             |
+| Layer           | Technology         | Local stack |
+| --------------- | ------------------ | ----------- |
+| Streaming       | Apache Kafka       | Yes         |
+| Schema Registry | Confluent          | Yes         |
+| Ingestion       | Apache NiFi        | Yes         |
+| Processing      | Apache Spark       | Yes         |
+| Lakehouse       | Apache Iceberg     | Yes         |
+| Storage         | MinIO              | Yes         |
+| Catalog         | Project Nessie     | Yes         |
+| Query Engine    | Trino              | Yes         |
+| Orchestration   | Apache Airflow     | Planned     |
+| Metadata        | OpenMetadata       | Planned     |
+| Data Quality    | Great Expectations | Planned     |
+| ML Platform     | MLflow             | Planned     |
+| Vector Database | Qdrant             | Planned     |
+| LLM Layer       | OpenAI / Ollama    | Planned     |
+| Language        | Python             | Yes         |
 
 ---
 
@@ -356,37 +447,27 @@ AI Applications
 
 ## Project Status
 
-Current Phase:
+**Current phase (implemented locally):**
 
-* Source Systems
-* Kafka Streaming
-* Lakehouse Foundation
+* Source system simulators (`source/`) — 7 Kafka producers
+* Docker Compose stack — Kafka, Schema Registry, NiFi, MinIO, Nessie, Spark, Trino
+* Smoke tests (`scripts/smoke-test.sh`)
+* Architecture & data model documentation (`arch/`)
 
-Upcoming:
+**Upcoming:**
 
-* Spark ETL Pipelines
-* Trino Semantic Layer
-* RAG Implementation
-* Text-to-SQL Service
-* ML Platform Integration
+* NiFi flows (Kafka → Iceberg Bronze)
+* Spark ETL pipelines (Bronze → Silver → Gold)
+* Trino semantic layer
+* RAG implementation
+* Text-to-SQL service
+* ML platform integration (MLflow, feature store)
+* Airflow orchestration, OpenMetadata, Great Expectations
 
 ---
 
- 
-
-## Technology Stack
-Primary recommended stack (with alternatives discussed in the docs):
-
-- **Storage/Lakehouse**: MinIO (S3) + Apache Iceberg
-- **Streaming**: Kafka
-- **Orchestration**: Airflow
-- **Compute**: Spark (batch + streaming)
-- **Query Engine**: Trino (lakehouse SQL), plus a warehouse (see `08-data-warehouse-architecture.md`)
-- **Catalog/Governance**: Iceberg catalog + data catalog (enterprise option), lineage, RBAC/ABAC
-- **Observability**: metrics, logs, traces; data observability and SLAs/SLOs
-- **ML/GenAI**: model registry, feature pipelines, LLM serving, vector database
-
 ## Data Flow Overview
+
 End-to-end flow (conceptual):
 
 ```mermaid

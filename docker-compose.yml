@@ -1,159 +1,138 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
+# DataMind AI — local platform stack
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# Profiles:
+#   ingestion  — Kafka, Zookeeper, Schema Registry, Kafka UI, NiFi
+#   storage    — MinIO, Nessie, Iceberg REST fixture
+#   processing — Spark + Iceberg (Jupyter)
+#   query      — Trino SQL engine
 #
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
----
+# Start everything:
+#   docker compose --profile ingestion --profile storage --profile processing --profile query up -d
+#
+# Smoke test:
+#   ./scripts/smoke-test.sh
+
+name: datamind-ai
+
 services:
-  spark-iceberg:
-    image: tabulario/spark-iceberg
-    container_name: spark-iceberg
-    build: spark/
-    networks:
-      iceberg_net:
-    depends_on:
-      nessie:
-        condition: service_healthy
-      minio:
-        condition: service_started
-    volumes:
-      - ./warehouse:/home/iceberg/warehouse
-      - ./notebooks:/home/iceberg/notebooks/notebooks
-      - ./init/setup.sql:/home/iceberg/setup.sql
-      - ./spark/jobs:/home/iceberg/jobs
-      # Repo layout: tourism-project/docker-spark-iceberg-minio-kafka/ → ../extraction/...
-      - ../extraction/output/landing:/home/iceberg/landing:rw
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
+  # ── Ingestion backbone ──────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    profiles: ["ingestion"]
     ports:
-      - 8888:8888
-      - 8080:8080
-      - 10000:10000
-      - 10001:10001
-    profiles: ["processing"]
-
-  # ── Nessie Catalog (persistent, Postgres-backed) ──────────────────────────
-  nessie-postgres:
-    image: postgres:16
-    container_name: nessie-postgres
+      - "2181:2181"
     environment:
-      - POSTGRES_DB=nessie
-      - POSTGRES_USER=nessie
-      - POSTGRES_PASSWORD=nessie
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nessie -d nessie"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
     volumes:
-      - nessie_db_data:/var/lib/postgresql/data
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
     networks:
-      data_network:
-    profiles: ["Storage"]
-
-  nessie:
-    image: projectnessie/nessie:latest
-    container_name: nessie
-    depends_on:
-      nessie-postgres:
-        condition: service_healthy
-    environment:
-      - NESSIE_VERSION_STORE_TYPE=JDBC
-      - NESSIE_VERSION_STORE_PERSIST_JDBC_DATASOURCE=postgresql
-      - QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://nessie-postgres:5432/nessie
-      - QUARKUS_DATASOURCE_USERNAME=nessie
-      - QUARKUS_DATASOURCE_PASSWORD=nessie
+      - data_network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:19120/api/v2/config || exit 1"]
+      test: ["CMD", "bash", "-c", "echo srvr | nc localhost 2181 | grep -q Mode"]
       interval: 10s
       timeout: 5s
-      retries: 12
-    networks:
-      data_network:
-    ports:
-      - "19120:19120"
-    profiles: ["Storage"]
+      retries: 10
+      start_period: 15s
 
-  # ── Legacy REST fixture (optional; PyIceberg / demos) ─────────────────────
-  rest:
-    image: apache/iceberg-rest-fixture
-    container_name: iceberg-rest
-    networks:
-      data_network:
-    ports:
-      - 8181:8181
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-      - CATALOG_WAREHOUSE=s3://telecom-bronze/
-      - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_PATH_STYLE_ACCESS=true
-      - CATALOG_S3_ENDPOINT=http://minio:9000
-    profiles: ["Storage"]
-
-  minio:
-    image: minio/minio
-    container_name: minio
-    environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
-      - MINIO_DOMAIN=minio
-    networks:
-      data_network:
-        aliases:
-          - warehouse.minio
-          - telecom-bronze.minio
-    ports:
-      - 9001:9001
-      - 9000:9000
-    command: ["server", "/data", "--console-address", ":9001"]
-    profiles: ["Storage"]
-
-  mc:
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    profiles: ["ingestion"]
     depends_on:
-      - minio
-    image: minio/mc
-    container_name: mc
-    networks:
-      data_network:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
     environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-    entrypoint: >
-      /bin/sh -c " until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done; /usr/bin/mc rm -r --force minio/warehouse; /usr/bin/mc mb minio/warehouse; /usr/bin/mc anonymous set public minio/warehouse; /usr/bin/mc mb minio/touriq-bronze; /usr/bin/mc anonymous set public minio/touriq-bronze; tail -f /dev/null "
-    profiles: ["Storage"]  
-# Apache NiFi - Data Orchestration
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: schema-registry
+    profiles: ["ingestion"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/subjects"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    profiles: ["ingestion"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: datamind-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+    networks:
+      - data_network
+
   nifi:
     image: apache/nifi:1.21.0
     container_name: nifi
+    profiles: ["ingestion"]
+    depends_on:
+      kafka:
+        condition: service_healthy
     ports:
       - "8443:8443"
-      - "8080:8080"
+      - "8082:8080"
       - "6980:6980"
     environment:
-      - SINGLE_USER_CREDENTIALS_USERNAME=admin
-      - SINGLE_USER_CREDENTIALS_PASSWORD=ctsBtRBKHRAx69EqUghvvgEvjnaLjFEB
-      - NIFI_WEB_HTTPS_PORT=8443
-      - NIFI_WEB_HTTP_PORT=8080
-      - NIFI_WEB_HTTPS_HOST=0.0.0.0
-      - NIFI_WEB_HTTP_HOST=0.0.0.0
-      - NIFI_JVM_HEAP_INIT=512m
-      - NIFI_JVM_HEAP_MAX=2g
+      SINGLE_USER_CREDENTIALS_USERNAME: admin
+      SINGLE_USER_CREDENTIALS_PASSWORD: ctsBtRBKHRAx69EqUghvvgEvjnaLjFEB
+      NIFI_WEB_HTTPS_PORT: 8443
+      NIFI_WEB_HTTP_PORT: 8080
+      NIFI_WEB_HTTPS_HOST: 0.0.0.0
+      NIFI_WEB_HTTP_HOST: 0.0.0.0
+      NIFI_JVM_HEAP_INIT: 512m
+      NIFI_JVM_HEAP_MAX: 2g
     volumes:
       - nifi_data:/opt/nifi/nifi-current/conf
       - nifi_logs:/opt/nifi/nifi-current/logs
@@ -171,80 +150,195 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8080/nifi"]
       interval: 30s
       timeout: 10s
-      retries: 5
-    profiles: ["ingestion"]
-  # Zookeeper - Kafka Coordination
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
-    ports:
-      - "2181:2181"
+      retries: 15
+      start_period: 120s
+
+  # ── Lakehouse storage ───────────────────────────────────────────────────────
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    profiles: ["storage"]
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-      ZOOKEEPER_SYNC_LIMIT: 2
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password
+      MINIO_DOMAIN: minio
+    networks:
+      data_network:
+        aliases:
+          - warehouse.minio
+          - telecom-bronze.minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     volumes:
-      - zookeeper_data:/var/lib/zookeeper/data
-      - zookeeper_logs:/var/lib/zookeeper/log
+      - minio_data:/data
+    command: ["server", "/data", "--console-address", ":9001"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  mc:
+    image: minio/mc
+    container_name: mc
+    profiles: ["storage"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./scripts/init-minio.sh:/init-minio.sh:ro
+    entrypoint: ["/bin/sh", "/init-minio.sh"]
     networks:
       - data_network
-    profiles: ["ingestion"]
 
-  # Apache Kafka - Event Streaming
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-      - "29092:29092"
+  nessie-postgres:
+    image: postgres:16
+    container_name: nessie-postgres
+    profiles: ["storage"]
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_LOG_RETENTION_HOURS: 168
-      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      POSTGRES_DB: nessie
+      POSTGRES_USER: nessie
+      POSTGRES_PASSWORD: nessie
     volumes:
-      - kafka_data:/var/lib/kafka/data
+      - nessie_db_data:/var/lib/postgresql/data
     networks:
       - data_network
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    profiles: ["ingestion"]
+      test: ["CMD-SHELL", "pg_isready -U nessie -d nessie"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-
-  # Kafka UI - Monitoring
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka-ui
+  nessie:
+    image: projectnessie/nessie:latest
+    container_name: nessie
+    profiles: ["storage"]
     depends_on:
-      - kafka
-    ports:
-      - "8090:8080"
+      nessie-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      NESSIE_VERSION_STORE_TYPE: JDBC
+      NESSIE_VERSION_STORE_PERSIST_JDBC_DATASOURCE: postgresql
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://nessie-postgres:5432/nessie
+      QUARKUS_DATASOURCE_USERNAME: nessie
+      QUARKUS_DATASOURCE_PASSWORD: nessie
+      NESSIE_SERVER_DEFAULT_REFERENCE_BRANCH: main
+    ports:
+      - "19120:19120"
     networks:
       - data_network
-    profiles: ["ingestion"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:19120/api/v2/config || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  rest:
+    image: apache/iceberg-rest-fixture
+    container_name: iceberg-rest
+    profiles: ["storage"]
+    depends_on:
+      minio:
+        condition: service_healthy
+      mc:
+        condition: service_started
+    ports:
+      - "8181:8181"
+    environment:
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password
+      AWS_REGION: us-east-1
+      CATALOG_WAREHOUSE: s3://warehouse/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_PATH_STYLE_ACCESS: "true"
+      CATALOG_S3_ENDPOINT: http://minio:9000
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8181/v1/config || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  # ── Processing (Spark + Iceberg) ────────────────────────────────────────────
+
+  spark-iceberg:
+    image: tabulario/spark-iceberg
+    container_name: spark-iceberg
+    profiles: ["processing"]
+    depends_on:
+      rest:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./warehouse:/home/iceberg/warehouse
+      - ./notebooks:/home/iceberg/notebooks/notebooks
+      - ./init/setup.sql:/home/iceberg/setup.sql
+      - ./spark/jobs:/home/iceberg/jobs
+      - ./landing:/home/iceberg/landing
+      - spark_shared:/home/iceberg/spark-shared
+    environment:
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password
+      AWS_REGION: us-east-1
+    ports:
+      - "8888:8888"
+      - "8080:8080"
+      - "10000:10000"
+      - "10001:10001"
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080 || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ── Query layer ─────────────────────────────────────────────────────────────
+
+  trino:
+    image: trinodb/trino:476
+    container_name: trino
+    profiles: ["query"]
+    depends_on:
+      nessie:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mc:
+        condition: service_started
+    ports:
+      - "8085:8080"
+    volumes:
+      - ./trino/etc/config.properties:/etc/trino/config.properties:ro
+      - ./trino/etc/node.properties:/etc/trino/node.properties:ro
+      - ./trino/etc/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/catalog:/etc/trino/catalog:ro
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/v1/info || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 45s
 
 networks:
   data_network:
+    name: datamind_data_network
 
 volumes:
+  minio_data:
   nessie_db_data:
-    external: false
   nifi_data:
   nifi_logs:
   nifi_database:
@@ -254,4 +348,4 @@ volumes:
   zookeeper_data:
   zookeeper_logs:
   kafka_data:
-
+  spark_shared:
