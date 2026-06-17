@@ -1,4 +1,4 @@
-# 01 — Business Context
+# 1 — Business Context
 
 ## Purpose
 Define the business drivers, operating model, and stakeholder goals that shape the platform architecture for Support Tickets, Payments, and Telecom CDRs.

@@ -7,19 +7,12 @@
 The Gold Layer contains curated business-ready datasets optimized for:
 
 - Executive Reporting
-    
 - Self-Service Analytics
-    
 - Power BI Dashboards
-    
 - Text-to-SQL
-    
 - Machine Learning
-    
 - AI Applications
-    
 - KPI Reporting
-    
 
 Unlike the Silver Layer, Gold tables are business-oriented rather than event-oriented.
 
@@ -95,31 +88,31 @@ customer_id
 
 ### Columns
 
-|Column|
-|---|
-|customer_id|
-|phone_number|
-|plan_type|
-|city|
-|region|
-|behavior_profile|
-|registration_date|
-|customer_segment|
-|total_calls|
-|total_sms|
-|total_data_usage_mb|
-|total_roaming_events|
-|total_roaming_charges|
-|total_payments|
-|total_recharges|
-|total_revenue|
-|avg_call_duration|
-|avg_session_duration|
-|total_tickets|
-|total_complaints|
-|last_activity_date|
-|customer_lifetime_value|
-|churn_score|
+| Column                  |
+| ----------------------- |
+| customer_id             |
+| phone_number            |
+| plan_type               |
+| city                    |
+| region                  |
+| behavior_profile        |
+| registration_date       |
+| customer_segment        |
+| total_calls             |
+| total_sms               |
+| total_data_usage_mb     |
+| total_roaming_events    |
+| total_roaming_charges   |
+| total_payments          |
+| total_recharges         |
+| total_revenue           |
+| avg_call_duration       |
+| avg_session_duration    |
+| total_tickets           |
+| total_complaints        |
+| last_activity_date      |
+| customer_lifetime_value |
+| churn_score             |
 
 ### Source Tables
 
