@@ -631,99 +631,6 @@ services:
       retries: 10
       start_period: 30s
 
-  # ── ML platform (MLflow) ────────────────────────────────────────────────────
-
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.18.0
-    container_name: mlflow
-    profiles: ["ml"]
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri sqlite:///mlflow/mlflow.db
-      --default-artifact-root s3://warehouse/mlflow/
-    environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-    ports:
-      - "5000:5000"
-    volumes:
-      - mlflow_data:/mlflow
-    networks:
-      - data_network
-    <<: *restart
-    logging: *logging
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-          cpus: "1.0"
-        reservations:
-          memory: 256m
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-
-  # ── AI layer (Qdrant + Ollama) ──────────────────────────────────────────────
-
-  qdrant:
-    image: qdrant/qdrant:v1.12.5
-    container_name: qdrant
-    profiles: ["ai"]
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    networks:
-      - data_network
-    <<: *restart
-    logging: *logging
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-          cpus: "1.0"
-        reservations:
-          memory: 256m
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-
-  ollama:
-    image: ollama/ollama:0.5.4   # pinned (was: latest)
-    container_name: ollama
-    profiles: ["ai"]
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - data_network
-    <<: *restart
-    logging: *logging
-    deploy:
-      resources:
-        limits:
-          memory: 8g
-          cpus: "4.0"
-        reservations:
-          memory: 1g
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-
 networks:
   data_network:
     name: datamind_data_network
@@ -742,6 +649,3 @@ volumes:
   shared_postgres_data:      # replaces nessie_db_data + airflow_postgres_data
   openmetadata_mysql_data:
   openmetadata_es_data:
-  mlflow_data:
-  qdrant_data:
-  ollama_data:
