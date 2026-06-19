@@ -4,7 +4,7 @@ set -e
 
 function create_db() {
   local db=$1 user=$2 pass=$3
-  echo "→ Creating database '$db' and user '$user'"
+  echo "-> Creating database '$db' and user '$user'"
   psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     CREATE USER $user WITH PASSWORD '$pass';
     CREATE DATABASE $db OWNER $user;

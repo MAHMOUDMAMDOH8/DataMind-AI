@@ -1,0 +1,197 @@
+from datetime import datetime
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import input_file_name, regexp_extract
+
+
+def get_spark_session(app_name: str = "DataMindAI"):
+    return (
+        SparkSession.builder.appName(app_name)
+        .config("spark.sql.catalog.local", "org.apache.iceberg.spark.SparkCatalog")
+        .config("spark.sql.catalog.local.type", "rest")
+        .config("spark.sql.catalog.local.uri", "http://iceberg-rest:8181")
+        .config("spark.sql.catalog.local.warehouse", "s3://warehouse/")
+        .config("spark.sql.catalog.local.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
+        .config("spark.sql.catalog.local.s3.endpoint", "http://minio:9000")
+        .config("spark.sql.catalog.local.s3.path-style-access", "true")
+        .config("spark.sql.catalog.local.s3.access-key-id", "minioadmin")
+        .config("spark.sql.catalog.local.s3.secret-access-key", "minioadmin123")
+        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000")
+        .config("spark.hadoop.fs.s3a.path.style.access", "true")
+        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
+        .config("spark.hadoop.fs.s3a.attempts.maximum", "1")
+        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+        .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
+        .config("spark.sql.adaptive.enabled", "true")
+        .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
+        .getOrCreate()
+    )
+
+
+def read_bronze_table(
+    spark: SparkSession,
+    table_name: str,
+    bucket: str = "telecomlakehouse",
+    base_layer: str = "bronze_layer",
+):
+    s3_path = f"s3a://{bucket}/{base_layer}/{table_name}/"
+
+    return (
+        spark.read.option("multiLine", "true")
+        .option("recursiveFileLookup", "true")
+        .json(s3_path)
+        .withColumn("source_file", input_file_name())
+        .withColumn(
+            "event_date",
+            regexp_extract("source_file", r"/(\d{4}-\d{2}-\d{2})/", 1),
+        )
+        .withColumn(
+            "event_hour",
+            regexp_extract("source_file", r"/\d{4}-\d{2}-\d{2}/(\d{2})/", 1),
+        )
+    )
+
+
+def read_from_iceberg(table_name: str, spark: SparkSession = None):
+    if spark is None:
+        try:
+            spark = SparkSession.getActiveSession()
+            if spark is None:
+                spark = get_spark_session()
+        except Exception:
+            spark = get_spark_session()
+
+    full_table = f"local.{table_name}"
+
+    try:
+        if not spark.catalog.tableExists(full_table):
+            print(f"Table {full_table} does not exist.")
+            return None
+
+        print(f"Reading data from Iceberg table: {full_table}")
+        df = spark.table(full_table)
+        count = df.count()
+        print(f"Successfully read {count} records from {full_table}")
+        return df
+
+    except Exception as e:
+        print(f"Error reading data from Iceberg table: {e}")
+        raise
+
+
+def write_to_iceberg(df: DataFrame, table_name: str, mode: str = "append"):
+    spark = df.sparkSession
+    full_table = f"local.{table_name}"
+
+    if not spark.catalog.tableExists(full_table):
+        df.writeTo(full_table).create()
+    else:
+        if mode == "overwrite":
+            df.writeTo(full_table).overwritePartitions()
+        else:
+            df.writeTo(full_table).append()
+
+
+def move_to_archive(
+    df: DataFrame,
+    table_name: str,
+    archive_bucket: str = "s3a://telecomlakehouse",
+    archive_layer: str = "archive",
+):
+    spark = df.sparkSession
+    now = datetime.now().strftime("%Y%m%d%H")
+    new_table = f"local.{table_name}_{now}"
+
+    if not spark.catalog.tableExists(new_table):
+        print(f"Table {new_table} does not exist. Creating it...")
+        df.writeTo(new_table).create()
+    else:
+        print(f"Appending to existing Iceberg table: {new_table}")
+        df.writeTo(new_table).append()
+
+    if "source_file" in df.columns:
+        jvm = spark.sparkContext._jvm
+        hadoop_conf = spark.sparkContext._jsc.hadoopConfiguration()
+
+        if "event_date" in df.columns:
+            rows = df.select("source_file", "event_date").distinct().collect()
+        else:
+            rows = df.select("source_file").distinct().collect()
+
+        fs = None
+        archived_count = 0
+
+        for row in rows:
+            src = row.source_file
+            if not src:
+                continue
+
+            date_str = None
+            if "event_date" in df.columns:
+                try:
+                    date_str = row.event_date
+                except Exception:
+                    date_str = None
+
+            if not date_str:
+                date_str = datetime.now().strftime("%Y%m%d")
+            else:
+                date_str = str(date_str).replace("-", "")
+
+            archive_base = f"{archive_bucket}/{archive_layer}/{table_name}/{date_str}"
+
+            if fs is None:
+                fs = jvm.org.apache.hadoop.fs.FileSystem.get(
+                    jvm.java.net.URI(archive_base), hadoop_conf
+                )
+
+            dest_base_path = jvm.org.apache.hadoop.fs.Path(archive_base)
+            if not fs.exists(dest_base_path):
+                fs.mkdirs(dest_base_path)
+
+            src_path = jvm.org.apache.hadoop.fs.Path(src)
+            dest_path = jvm.org.apache.hadoop.fs.Path(
+                f"{archive_base}/{src_path.getName()}"
+            )
+            fs.rename(src_path, dest_path)
+            archived_count += 1
+
+        print(
+            f"Archived {archived_count} raw files under {archive_bucket}/{archive_layer}/{table_name}/<event_date>"
+        )
+
+    return df
+
+
+def delete_raws_in_bronze(
+    table_name: str,
+    date: str = None,
+    hour: str = None,
+    bronze_bucket: str = "s3a://telecomlakehouse",
+    spark: SparkSession = None,
+):
+    if spark is None:
+        spark = SparkSession.getActiveSession() or get_spark_session()
+
+    base_path = f"{bronze_bucket}/bronze_layer/{table_name}"
+
+    if date:
+        base_path += f"/{date}"
+        if hour:
+            base_path += f"/{hour}"
+
+    jvm = spark.sparkContext._jvm
+    hadoop_conf = spark.sparkContext._jsc.hadoopConfiguration()
+    fs = jvm.org.apache.hadoop.fs.FileSystem.get(
+        jvm.java.net.URI(base_path), hadoop_conf
+    )
+
+    path = jvm.org.apache.hadoop.fs.Path(base_path)
+
+    if not fs.exists(path):
+        print(f"No files found at {base_path}")
+        return 0
+
+    deleted = fs.delete(path, True)
+    print(f"Deleted bronze data at {base_path}")
+    return deleted

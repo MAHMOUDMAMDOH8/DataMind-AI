@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-until mc alias set minio http://minio:9000 admin password; do
+until mc alias set minio http://minio:9000 minioadmin minioadmin123; do
   echo "Waiting for MinIO..."
   sleep 2
 done

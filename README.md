@@ -120,7 +120,7 @@ Use `--clean` to disable intentional data-quality defects in generated events.
 | Schema Registry | http://localhost:8081 | Avro schemas (future) |
 | Kafka UI | http://localhost:8090 | Topic browser |
 | NiFi | http://localhost:8082/nifi | `admin` / see `docker-compose.yml` |
-| MinIO Console | http://localhost:9001 | `admin` / `password` |
+| MinIO Console | http://localhost:9001 | `minioadmin` / `minioadmin123` |
 | Nessie | http://localhost:19120 | Iceberg catalog API |
 | Iceberg REST | http://localhost:8181 | PyIceberg / Spark catalog |
 | Spark UI | http://localhost:8080 | — |
