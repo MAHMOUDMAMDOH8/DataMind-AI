@@ -619,9 +619,12 @@ services:
     image: docker.getcollate.io/openmetadata/ingestion:1.5.0
     container_name: openmetadata-ingestion
     profiles: ["governance"]
-    command: "ingestionWorkflow"
+    command: >
+      bash -c "rm -f /opt/airflow/*.pid && exec airflow standalone"
     env_file:
       - ./governance/openmetadata.env
+    ports:
+      - "8080:8080"
     depends_on:
       openmetadata-server:
         condition: service_healthy
