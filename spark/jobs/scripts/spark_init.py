@@ -1,6 +1,22 @@
-from datetime import datetime
+import json
+import os
+import uuid
+from datetime import datetime, timezone
+
+import boto3
+from botocore.exceptions import ClientError
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import input_file_name, regexp_extract
+
+warehouse_name_bucket = "warehouse"
+pipeline_metadata_prefix = "pipeline_metadata"
+
+
+def _normalize_endpoint_url(endpoint_url: str) -> str:
+    url = endpoint_url.rstrip("/")
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    return url
 
 
 def get_spark_session(app_name: str = "DataMindAI"):
@@ -195,3 +211,99 @@ def delete_raws_in_bronze(
     deleted = fs.delete(path, True)
     print(f"Deleted bronze data at {base_path}")
     return deleted
+
+
+def write_pipeline_metadata_event(
+    endpoint_url: str,
+    *,
+    pipeline_stage: str,
+    entity: str,
+    action: str,
+    source_files: list[str] | None = None,
+    row_count: int | None = None,
+    target: str | None = None,
+    status: str = "success",
+    error_message: str | None = None,
+    extra: dict | None = None,
+) -> str | None:
+    try:
+        base = (pipeline_metadata_prefix or "pipeline_metadata").rstrip("/")
+        events_pre = f"{base}/events/"
+        dt = datetime.now(timezone.utc)
+        day = dt.strftime("%Y/%m/%d")
+        eid = str(uuid.uuid4())
+        key = f"{events_pre}{day}/{dt.strftime('%H%M%S')}_{eid}.json"
+        payload = {
+            "schema_version": 1,
+            "event_id": eid,
+            "event_time_utc": dt.isoformat(),
+            "pipeline_stage": pipeline_stage,
+            "entity": entity,
+            "action": action,
+            "source_files": list(source_files) if source_files else [],
+            "source_file_count": len(source_files) if source_files else 0,
+            "row_count": row_count,
+            "target": target,
+            "status": status,
+            "error_message": error_message,
+            "warehouse_bucket": warehouse_name_bucket,
+            "extra": extra or {},
+        }
+        url = _normalize_endpoint_url(endpoint_url)
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=url,
+            aws_access_key_id="minioadmin",
+            aws_secret_access_key="minioadmin123",
+            region_name="us-east-1",
+        )
+        s3.put_object(
+            Bucket=warehouse_name_bucket,
+            Key=key,
+            Body=json.dumps(payload, default=str).encode("utf-8"),
+            ContentType="application/json",
+        )
+        return key
+    except Exception as e:
+        print(f"[pipeline metadata] S3 write skipped: {e}")
+        return None
+
+
+def load_pipeline_metadata_events(
+    endpoint_url: str,
+    bucket: str | None = None,
+    prefix: str | None = None,
+    max_events: int = 500,
+) -> list[dict]:
+    bucket = bucket or warehouse_name_bucket
+    root = (prefix or pipeline_metadata_prefix or "pipeline_metadata").rstrip("/") + "/events/"
+    url = _normalize_endpoint_url(endpoint_url)
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=url,
+        aws_access_key_id="minioadmin",
+        aws_secret_access_key="minioadmin123",
+        region_name="us-east-1",
+    )
+    keys: list[tuple] = []
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=root):
+            for obj in page.get("Contents") or []:
+                k = obj["Key"]
+                if k.endswith(".json"):
+                    keys.append((obj.get("LastModified"), k))
+    except ClientError:
+        return []
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    keys.sort(key=lambda x: x[0] or epoch, reverse=True)
+    out: list[dict] = []
+    for _, k in keys[:max_events]:
+        try:
+            body = s3.get_object(Bucket=bucket, Key=k)["Body"].read()
+            doc = json.loads(body.decode("utf-8"))
+            doc["_s3_key"] = k
+            out.append(doc)
+        except Exception:
+            continue
+    return out
