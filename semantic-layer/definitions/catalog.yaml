@@ -1,0 +1,77 @@
+name: DataMind AI Telecom
+description: Semantic Layer catalog for DataMind AI telecom analytics platform
+version: 1.0.0
+
+database:
+  engine: trino
+  host: localhost
+  port: 8085
+  catalog: iceberg
+  schema: gold
+
+tables:
+  customer_360:
+    label: Customer 360
+    description: Unified customer profile with usage, revenue, and behavior
+    grain: one row per customer
+    partition: region
+
+  daily_revenue:
+    label: Daily Revenue
+    description: Daily financial performance by service
+    grain: one row per day
+    partition: revenue_date
+
+  customer_usage_daily:
+    label: Customer Usage Daily
+    description: Daily per-customer usage metrics
+    grain: one row per customer per day
+    partition: usage_date
+
+  payment_analytics:
+    label: Payment Analytics
+    description: Payment transaction performance by method
+    grain: one row per day per payment method
+    partition: payment_date
+
+  recharge_analytics:
+    label: Recharge Analytics
+    description: Recharge transaction performance by method
+    grain: one row per day per payment method
+    partition: recharge_date
+
+  roaming_analytics:
+    label: Roaming Analytics
+    description: International roaming performance by country
+    grain: one row per country per day
+    partition: roaming_date
+
+  network_performance:
+    label: Network Performance
+    description: Network health and service quality by cell site
+    grain: one row per cell site per day
+    partition: performance_date
+
+  support_analytics:
+    label: Support Analytics
+    description: Customer support performance metrics
+    grain: one row per day
+    partition: support_date
+
+  fraud_monitoring:
+    label: Fraud Monitoring
+    description: Fraud and risk monitoring by customer
+    grain: one row per customer per day
+    partition: fraud_date
+
+  dim_date:
+    label: Date Dimension
+    description: Date lookup with calendar attributes
+    grain: one row per day
+
+compliance:
+  pii_columns:
+    - customer_360.phone_number
+  sensitive_metrics:
+    - fraud_monitoring.avg_risk_score
+    - fraud_monitoring.max_risk_score

@@ -1,0 +1,229 @@
+entities:
+  customer:
+    label: Customer
+    description: A telecom customer with complete profile
+    table: gold.customer_360
+    primary_key: customer_id
+    attributes:
+      - customer_id
+      - phone_number
+      - plan_type
+      - city
+      - region
+      - behavior_profile
+      - customer_segment
+      - total_calls
+      - total_sms
+      - total_data_usage_mb
+      - total_roaming_events
+      - total_roaming_charges
+      - total_payments
+      - total_recharges
+      - total_revenue
+      - avg_call_duration
+      - avg_session_duration
+      - customer_lifetime_value
+      - churn_score
+    metrics:
+      - total_revenue
+      - total_calls
+      - total_sms
+      - total_data_usage
+      - avg_call_duration
+      - churn_rate
+      - customer_lifetime_value
+    tags:
+      - core
+      - crm
+
+  payment:
+    label: Payment
+    description: Payment transaction analytics
+    table: gold.payment_analytics
+    primary_key: date_sk
+    attributes:
+      - payment_date
+      - payment_method
+      - transaction_count
+      - successful_transactions
+      - failed_transactions
+      - total_amount
+      - avg_transaction_amount
+      - success_rate
+    metrics:
+      - total_payment_amount
+      - payment_success_rate
+      - avg_transaction_amount
+    tags:
+      - finance
+      - revenue
+
+  recharge:
+    label: Recharge
+    description: Customer recharge analytics
+    table: gold.recharge_analytics
+    primary_key: date_sk
+    attributes:
+      - recharge_date
+      - payment_method
+      - recharge_count
+      - total_recharge_amount
+      - avg_recharge_amount
+      - unique_customers
+    metrics:
+      - recharge_count
+      - total_recharge_amount
+      - avg_recharge_amount
+      - unique_customers_by_recharge
+    tags:
+      - finance
+      - revenue
+
+  roaming_event:
+    label: Roaming Event
+    description: International roaming session analytics
+    table: gold.roaming_analytics
+    primary_key: date_sk
+    attributes:
+      - roaming_date
+      - roaming_country
+      - roaming_operator
+      - roaming_type
+      - roaming_events
+      - unique_customers
+      - total_duration_seconds
+      - total_data_used_mb
+      - total_roaming_charges
+    metrics:
+      - roaming_events
+      - total_roaming_charges
+      - roaming_customers
+    tags:
+      - network
+      - international
+
+  cell_site:
+    label: Cell Site
+    description: Network cell tower performance
+    table: gold.network_performance
+    primary_key: cell_site_id
+    attributes:
+      - performance_date
+      - cell_site_id
+      - city
+      - region
+      - network_type
+      - avg_active_subscribers
+      - avg_throughput_mbps
+      - avg_cpu_utilization_pct
+      - avg_memory_utilization_pct
+      - avg_mos_score
+      - avg_jitter_ms
+      - avg_packet_loss_pct
+      - avg_latency_ms
+      - network_health_score
+    metrics:
+      - network_health_score
+      - avg_throughput
+      - avg_latency
+    tags:
+      - network
+      - infrastructure
+
+  support_ticket:
+    label: Support Ticket
+    description: Customer support performance analytics
+    table: gold.support_analytics
+    primary_key: date_sk
+    attributes:
+      - support_date
+      - tickets_created
+      - tickets_resolved
+      - complaints_received
+      - avg_resolution_time_seconds
+      - avg_wait_time_seconds
+      - avg_satisfaction_score
+      - escalation_rate
+      - callback_request_rate
+      - first_call_resolution_rate
+    metrics:
+      - tickets_created
+      - tickets_resolved
+      - avg_resolution_time
+      - avg_satisfaction_score
+      - escalation_rate
+    tags:
+      - support
+      - customer_service
+
+  fraud_event:
+    label: Fraud Event
+    description: Fraud and risk monitoring events
+    table: gold.fraud_monitoring
+    primary_key: fraud_date
+    attributes:
+      - fraud_date
+      - customer_id
+      - suspicious_calls
+      - suspicious_sessions
+      - avg_risk_score
+      - max_risk_score
+      - fraud_events
+    metrics:
+      - fraud_events
+      - suspicious_calls
+      - avg_risk_score
+    tags:
+      - risk
+      - security
+
+  usage:
+    label: Customer Usage
+    description: Daily customer usage summary
+    table: gold.customer_usage_daily
+    primary_key: usage_date
+    attributes:
+      - usage_date
+      - customer_id
+      - calls_count
+      - total_call_duration_seconds
+      - sms_count
+      - total_data_usage_mb
+      - roaming_usage_mb
+      - roaming_events
+      - session_count
+      - avg_session_duration_seconds
+    metrics:
+      - daily_calls_count
+      - daily_data_usage
+      - active_customers
+    tags:
+      - usage
+      - activity
+
+  daily_revenue:
+    label: Daily Revenue
+    description: Daily revenue summary by service
+    table: gold.daily_revenue
+    primary_key: revenue_date
+    attributes:
+      - revenue_date
+      - call_revenue
+      - sms_revenue
+      - roaming_revenue
+      - payment_revenue
+      - recharge_revenue
+      - total_revenue
+      - successful_payments
+      - failed_payments
+      - active_customers
+    metrics:
+      - revenue
+      - call_revenue
+      - sms_revenue
+      - roaming_revenue
+      - recharge_revenue
+      - active_customers
+    tags:
+      - finance
+      - executive

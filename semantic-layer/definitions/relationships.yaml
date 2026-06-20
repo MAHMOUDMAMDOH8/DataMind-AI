@@ -1,0 +1,173 @@
+relationships:
+  customer_to_payments:
+    label: Customer to Payments
+    description: Links customers to their payment transactions
+    from_entity: customer
+    to_entity: payment
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.payment_analytics
+      condition: customer.customer_id = payment.customer_id
+
+  customer_to_recharges:
+    label: Customer to Recharges
+    description: Links customers to their recharge history
+    from_entity: customer
+    to_entity: recharge
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.recharge_analytics
+      condition: customer.customer_id = recharge.customer_id
+
+  customer_to_usage:
+    label: Customer to Usage
+    description: Links customers to their daily usage
+    from_entity: customer
+    to_entity: usage
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.customer_usage_daily
+      condition: customer.customer_id = usage.customer_id
+
+  customer_to_roaming:
+    label: Customer to Roaming
+    description: Links customers to roaming events
+    from_entity: customer
+    to_entity: roaming_event
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.roaming_analytics
+      condition: customer.customer_id = roaming_event.customer_id
+
+  customer_to_fraud:
+    label: Customer to Fraud
+    description: Links customers to fraud events
+    from_entity: customer
+    to_entity: fraud_event
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.fraud_monitoring
+      condition: customer.customer_id = fraud_event.customer_id
+
+  customer_to_support:
+    label: Customer to Support
+    description: Links customers to support tickets
+    from_entity: customer
+    to_entity: support_ticket
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.support_analytics
+      condition: customer.customer_id = support_ticket.customer_id
+
+  date_to_daily_revenue:
+    label: Date to Daily Revenue
+    description: Links date dimension to daily revenue
+    from_entity: date
+    to_entity: daily_revenue
+    type: one_to_one
+    join:
+      from_table: gold.dim_date
+      to_table: gold.daily_revenue
+      condition: date.date_sk = daily_revenue.date_sk
+
+  date_to_payments:
+    label: Date to Payments
+    description: Links date dimension to payment analytics
+    from_entity: date
+    to_entity: payment
+    type: one_to_many
+    join:
+      from_table: gold.dim_date
+      to_table: gold.payment_analytics
+      condition: date.date_sk = payment.date_sk
+
+  date_to_recharges:
+    label: Date to Recharges
+    description: Links date dimension to recharge analytics
+    from_entity: date
+    to_entity: recharge
+    type: one_to_many
+    join:
+      from_table: gold.dim_date
+      to_table: gold.recharge_analytics
+      condition: date.date_sk = recharge.date_sk
+
+  date_to_roaming:
+    label: Date to Roaming
+    description: Links date dimension to roaming analytics
+    from_entity: date
+    to_entity: roaming_event
+    type: one_to_many
+    join:
+      from_table: gold.dim_date
+      to_table: gold.roaming_analytics
+      condition: date.date_sk = roaming_event.date_sk
+
+  date_to_support:
+    label: Date to Support
+    description: Links date dimension to support analytics
+    from_entity: date
+    to_entity: support_ticket
+    type: one_to_one
+    join:
+      from_table: gold.dim_date
+      to_table: gold.support_analytics
+      condition: date.date_sk = support_ticket.date_sk
+
+  date_to_network:
+    label: Date to Network
+    description: Links date dimension to network performance
+    from_entity: date
+    to_entity: cell_site
+    type: one_to_many
+    join:
+      from_table: gold.dim_date
+      to_table: gold.network_performance
+      condition: date.date_sk = cell_site.date_sk
+
+  date_to_usage:
+    label: Date to Usage
+    description: Links date dimension to customer usage
+    from_entity: date
+    to_entity: usage
+    type: one_to_many
+    join:
+      from_table: gold.dim_date
+      to_table: gold.customer_usage_daily
+      condition: date.date_sk = usage.date_sk
+
+  date_to_fraud:
+    label: Date to Fraud
+    description: Links date dimension to fraud monitoring
+    from_entity: date
+    to_entity: fraud_event
+    type: one_to_many
+    join:
+      from_table: gold.dim_date
+      to_table: gold.fraud_monitoring
+      condition: date.date_sk = fraud_event.date_sk
+
+  geography_to_customer:
+    label: Geography to Customer
+    description: Links geography to customer profiles
+    from_entity: geography
+    to_entity: customer
+    type: one_to_many
+    join:
+      condition: geography.city = customer.city
+
+  geography_to_network:
+    label: Geography to Network
+    description: Links geography to cell site performance
+    from_entity: geography
+    to_entity: cell_site
+    type: one_to_many
+    join:
+      from_table: gold.network_performance
+      condition: geography.city = cell_site.city AND geography.region = cell_site.region

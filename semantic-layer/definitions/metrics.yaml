@@ -1,0 +1,323 @@
+metrics:
+  total_revenue:
+    label: Total Revenue
+    description: Total telecom revenue from all services
+    sql: SUM(total_revenue)
+    table: gold.customer_360
+    type: sum
+    source: gold.customer_360
+    grain: per customer
+    filters:
+      date_column: last_activity_date
+
+  revenue:
+    label: Revenue
+    description: Daily total revenue from all services
+    sql: SUM(total_revenue)
+    table: gold.daily_revenue
+    type: sum
+    source: gold.daily_revenue
+    grain: per day
+    filters:
+      date_column: revenue_date
+
+  call_revenue:
+    label: Call Revenue
+    description: Revenue from voice calls
+    sql: SUM(call_revenue)
+    table: gold.daily_revenue
+    type: sum
+    source: gold.daily_revenue
+
+  sms_revenue:
+    label: SMS Revenue
+    description: Revenue from SMS messages
+    sql: SUM(sms_revenue)
+    table: gold.daily_revenue
+    type: sum
+    source: gold.daily_revenue
+
+  roaming_revenue:
+    label: Roaming Revenue
+    description: Revenue from international roaming
+    sql: SUM(roaming_revenue)
+    table: gold.daily_revenue
+    type: sum
+    source: gold.daily_revenue
+
+  recharge_revenue:
+    label: Recharge Revenue
+    description: Revenue from customer recharges
+    sql: SUM(recharge_revenue)
+    table: gold.daily_revenue
+    type: sum
+    source: gold.daily_revenue
+
+  active_customers:
+    label: Active Customers
+    description: Distinct customers with activity in the period
+    sql: COUNT(DISTINCT customer_id)
+    table: gold.customer_usage_daily
+    type: count_distinct
+    source: gold.customer_usage_daily
+    filters:
+      date_column: usage_date
+
+  arpu:
+    label: ARPU
+    description: Average Revenue Per User
+    sql: SUM(total_revenue) / COUNT(DISTINCT customer_id)
+    table: gold.customer_360
+    type: ratio
+    numerator: total_revenue
+    denominator: active_customers
+    source: gold.customer_360
+
+  churn_rate:
+    label: Churn Rate
+    description: Average churn score across customer base
+    sql: AVG(churn_score)
+    table: gold.customer_360
+    type: avg
+    source: gold.customer_360
+
+  total_calls:
+    label: Total Calls
+    description: Total number of voice calls
+    sql: SUM(total_calls)
+    table: gold.customer_360
+    type: sum
+    source: gold.customer_360
+
+  total_sms:
+    label: Total SMS
+    description: Total number of SMS messages
+    sql: SUM(total_sms)
+    table: gold.customer_360
+    type: sum
+    source: gold.customer_360
+
+  total_data_usage:
+    label: Total Data Usage
+    description: Total mobile data usage in MB
+    sql: SUM(total_data_usage_mb)
+    table: gold.customer_360
+    type: sum
+    unit: MB
+    source: gold.customer_360
+
+  avg_call_duration:
+    label: Avg Call Duration
+    description: Average call duration in seconds
+    sql: AVG(avg_call_duration)
+    table: gold.customer_360
+    type: avg
+    unit: seconds
+    source: gold.customer_360
+
+  daily_calls_count:
+    label: Daily Calls per Customer
+    description: Average number of calls per customer per day
+    sql: SUM(calls_count)
+    table: gold.customer_usage_daily
+    type: sum
+    source: gold.customer_usage_daily
+
+  daily_data_usage:
+    label: Daily Data Usage
+    description: Total data usage per day in MB
+    sql: SUM(total_data_usage_mb)
+    table: gold.customer_usage_daily
+    type: sum
+    unit: MB
+    source: gold.customer_usage_daily
+
+  payment_success_rate:
+    label: Payment Success Rate
+    description: Percentage of successful payment transactions
+    sql: SUM(successful_transactions) / SUM(transaction_count) * 100
+    table: gold.payment_analytics
+    type: ratio
+    unit: percentage
+    source: gold.payment_analytics
+
+  total_payment_amount:
+    label: Total Payment Amount
+    description: Total value of all payment transactions
+    sql: SUM(total_amount)
+    table: gold.payment_analytics
+    type: sum
+    source: gold.payment_analytics
+
+  avg_transaction_amount:
+    label: Avg Transaction Amount
+    description: Average payment transaction value
+    sql: AVG(avg_transaction_amount)
+    table: gold.payment_analytics
+    type: avg
+    source: gold.payment_analytics
+
+  recharge_count:
+    label: Recharge Count
+    description: Total number of recharge transactions
+    sql: SUM(recharge_count)
+    table: gold.recharge_analytics
+    type: sum
+    source: gold.recharge_analytics
+
+  total_recharge_amount:
+    label: Total Recharge Amount
+    description: Total value of all recharges
+    sql: SUM(total_recharge_amount)
+    table: gold.recharge_analytics
+    type: sum
+    source: gold.recharge_analytics
+
+  avg_recharge_amount:
+    label: Avg Recharge Amount
+    description: Average recharge value
+    sql: AVG(avg_recharge_amount)
+    table: gold.recharge_analytics
+    type: avg
+    source: gold.recharge_analytics
+
+  unique_customers_by_recharge:
+    label: Unique Recharge Customers
+    description: Distinct customers who performed recharges
+    sql: SUM(unique_customers)
+    table: gold.recharge_analytics
+    type: sum
+    source: gold.recharge_analytics
+
+  roaming_events:
+    label: Roaming Events
+    description: Total number of roaming sessions
+    sql: SUM(roaming_events)
+    table: gold.roaming_analytics
+    type: sum
+    source: gold.roaming_analytics
+
+  total_roaming_charges:
+    label: Total Roaming Charges
+    description: Total charges from international roaming
+    sql: SUM(total_roaming_charges)
+    table: gold.roaming_analytics
+    type: sum
+    source: gold.roaming_analytics
+
+  roaming_customers:
+    label: Roaming Customers
+    description: Distinct customers who used roaming
+    sql: SUM(unique_customers)
+    table: gold.roaming_analytics
+    type: sum
+    source: gold.roaming_analytics
+
+  network_health_score:
+    label: Network Health Score
+    description: Overall network quality score (0-100)
+    sql: AVG(network_health_score)
+    table: gold.network_performance
+    type: avg
+    source: gold.network_performance
+    range:
+      min: 0
+      max: 100
+
+  avg_throughput:
+    label: Avg Throughput
+    description: Average network throughput in Mbps
+    sql: AVG(avg_throughput_mbps)
+    table: gold.network_performance
+    type: avg
+    unit: Mbps
+    source: gold.network_performance
+
+  avg_latency:
+    label: Avg Latency
+    description: Average network latency in milliseconds
+    sql: AVG(avg_latency_ms)
+    table: gold.network_performance
+    type: avg
+    unit: ms
+    source: gold.network_performance
+
+  tickets_created:
+    label: Tickets Created
+    description: Number of support tickets created
+    sql: SUM(tickets_created)
+    table: gold.support_analytics
+    type: sum
+    source: gold.support_analytics
+
+  tickets_resolved:
+    label: Tickets Resolved
+    description: Number of support tickets resolved
+    sql: SUM(tickets_resolved)
+    table: gold.support_analytics
+    type: sum
+    source: gold.support_analytics
+
+  avg_resolution_time:
+    label: Avg Resolution Time
+    description: Average time to resolve support tickets
+    sql: AVG(avg_resolution_time_seconds)
+    table: gold.support_analytics
+    type: avg
+    unit: seconds
+    source: gold.support_analytics
+
+  avg_satisfaction_score:
+    label: Avg Satisfaction Score
+    description: Average customer satisfaction rating
+    sql: AVG(avg_satisfaction_score)
+    table: gold.support_analytics
+    type: avg
+    source: gold.support_analytics
+    range:
+      min: 1
+      max: 5
+
+  escalation_rate:
+    label: Escalation Rate
+    description: Percentage of tickets that were escalated
+    sql: AVG(escalation_rate)
+    table: gold.support_analytics
+    type: avg
+    unit: percentage
+    source: gold.support_analytics
+
+  fraud_events:
+    label: Fraud Events
+    description: Number of suspicious/fraud events detected
+    sql: SUM(fraud_events)
+    table: gold.fraud_monitoring
+    type: sum
+    source: gold.fraud_monitoring
+
+  suspicious_calls:
+    label: Suspicious Calls
+    description: Number of calls flagged as suspicious
+    sql: SUM(suspicious_calls)
+    table: gold.fraud_monitoring
+    type: sum
+    source: gold.fraud_monitoring
+
+  avg_risk_score:
+    label: Avg Risk Score
+    description: Average fraud risk score
+    sql: AVG(avg_risk_score)
+    table: gold.fraud_monitoring
+    type: avg
+    source: gold.fraud_monitoring
+    range:
+      min: 0
+      max: 100
+
+  customer_lifetime_value:
+    label: Customer Lifetime Value
+    description: Projected total revenue from a customer
+    sql: AVG(customer_lifetime_value)
+    table: gold.customer_360
+    type: avg
+    source: gold.customer_360

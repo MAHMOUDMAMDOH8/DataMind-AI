@@ -633,6 +633,33 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # ── Semantic Layer (AI-powered analytics) ────────────────────────────────────
+
+  semantic-layer:
+    build: ./semantic-layer
+    container_name: semantic-layer
+    profiles: ["analytics"]
+    ports:
+      - "8000:8000"
+    environment:
+      TRINO_HOST: trino
+      TRINO_PORT: 8080
+      TRINO_CATALOG: iceberg
+      TRINO_SCHEMA: gold
+    depends_on:
+      trino:
+        condition: service_healthy
+    networks:
+      - data_network
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # ── Data quality (Great Expectations) ───────────────────────────────────────
 
   gx-gateway:

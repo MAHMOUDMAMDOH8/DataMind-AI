@@ -1,0 +1,185 @@
+dimensions:
+  customer:
+    label: Customer
+    description: Telecom customer profile
+    table: gold.customer_360
+    primary_key: customer_id
+    fields:
+      customer_id:
+        label: Customer ID
+        type: string
+        description: Unique customer identifier
+      phone_number:
+        label: Phone Number
+        type: string
+        description: Customer phone number (MSISDN)
+      plan_type:
+        label: Plan Type
+        type: category
+        description: Customer subscription plan
+        values:
+          - Prepaid
+          - Postpaid
+          - Business
+      city:
+        label: City
+        type: category
+        description: Customer city
+      region:
+        label: Region
+        type: category
+        description: Customer region
+      customer_segment:
+        label: Customer Segment
+        type: category
+        description: Customer segment classification
+        values:
+          - Gold
+          - Silver
+          - Bronze
+      behavior_profile:
+        label: Behavior Profile
+        type: category
+        description: Customer usage behavior profile
+        values:
+          - Heavy User
+          - Regular User
+          - Light User
+          - Roaming User
+      registration_date:
+        label: Registration Date
+        type: date
+        description: Customer registration date
+
+  date:
+    label: Date
+    description: Date dimension for time-based analysis
+    table: gold.dim_date
+    primary_key: date_sk
+    fields:
+      date_sk:
+        label: Date SK
+        type: string
+        description: Surrogate key for date
+      full_date:
+        label: Full Date
+        type: date
+        description: Calendar date
+      year:
+        label: Year
+        type: integer
+        description: Year
+      month:
+        label: Month
+        type: integer
+        description: Month number (01-12)
+      day:
+        label: Day
+        type: integer
+        description: Day of month
+      day_name:
+        label: Day Name
+        type: category
+        description: Day of week name
+      day_of_week:
+        label: Day of Week
+        type: integer
+        description: Day of week number (1=Sunday)
+      is_weekend:
+        label: Is Weekend
+        type: boolean
+        description: Whether day is weekend
+      quarter:
+        label: Quarter
+        type: integer
+        description: Calendar quarter
+
+  geography:
+    label: Geography
+    description: Geographic location dimensions
+    fields:
+      city:
+        label: City
+        type: category
+        description: City name
+        sources:
+          - gold.customer_360
+          - gold.network_performance
+      region:
+        label: Region
+        type: category
+        description: Region name
+        sources:
+          - gold.customer_360
+          - gold.network_performance
+      roaming_country:
+        label: Roaming Country
+        type: category
+        description: Country where roaming occurred
+        source: gold.roaming_analytics
+      cell_site_id:
+        label: Cell Site ID
+        type: string
+        description: Cell tower identifier
+        source: gold.network_performance
+
+  payment_method:
+    label: Payment Method
+    description: Payment method used for transactions
+    table: gold.payment_analytics
+    fields:
+      payment_method:
+        label: Payment Method
+        type: category
+        description: Method of payment
+        values:
+          - Credit Card
+          - Debit Card
+          - Wallet
+          - Bank Transfer
+          - Cash
+
+  plan_type:
+    label: Plan Type
+    description: Customer subscription plan category
+    table: gold.customer_360
+    fields:
+      plan_type:
+        label: Plan Type
+        type: category
+        description: Type of telecom plan
+        values:
+          - Prepaid
+          - Postpaid
+          - Business
+
+  network_type:
+    label: Network Type
+    description: Type of network technology
+    table: gold.network_performance
+    fields:
+      network_type:
+        label: Network Type
+        type: category
+        description: Network technology type
+        values:
+          - 4G
+          - 5G
+
+  roaming_operator:
+    label: Roaming Operator
+    description: Foreign network operator
+    table: gold.roaming_analytics
+    fields:
+      roaming_operator:
+        label: Roaming Operator
+        type: string
+        description: Foreign network operator name
+      roaming_type:
+        label: Roaming Type
+        type: category
+        description: Type of roaming
+        values:
+          - Data
+          - Voice
+          - SMS
