@@ -1,3 +1,5 @@
+from pyspark.sql.functions import expr
+
 from scripts.transformations import normalize_columns, add_rejection_reason
 from scripts.spark_init import write_pipeline_metadata_event
 
@@ -6,6 +8,9 @@ def transform_sms(df, metadata_endpoint: str = "http://minio:9000"):
     df = normalize_columns(df, "to", "to")
     df = normalize_columns(df, "billing_info", "")
     df = normalize_columns(df, "qos_metrics", "")
+
+    df = df.withColumn("from_tac", expr("substr(from_imei, 1, 8)"))
+    df = df.withColumn("to_tac", expr("substr(to_imei, 1, 8)"))
 
     final_df = add_rejection_reason(
         df,

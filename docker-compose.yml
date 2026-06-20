@@ -319,6 +319,8 @@ services:
     container_name: spark-iceberg
     profiles: ["processing"]
     depends_on:
+      nessie:
+        condition: service_healthy
       rest:
         condition: service_healthy
       minio:
@@ -607,11 +609,26 @@ services:
         reservations:
           memory: 512m
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8585/api/v1/system/version || exit 1"]
+      test: ["CMD-SHELL", "wget -q http://localhost:8585/api/v1/system/version -O /dev/null || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 20
       start_period: 120s
+
+  openmetadata-ingestion:
+    image: docker.getcollate.io/openmetadata/ingestion:1.5.0
+    container_name: openmetadata-ingestion
+    profiles: ["governance"]
+    command: "ingestionWorkflow"
+    env_file:
+      - ./governance/openmetadata.env
+    depends_on:
+      openmetadata-server:
+        condition: service_healthy
+    networks:
+      - data_network
+    restart: unless-stopped
+    logging: *logging
 
   # ── Data quality (Great Expectations) ───────────────────────────────────────
 

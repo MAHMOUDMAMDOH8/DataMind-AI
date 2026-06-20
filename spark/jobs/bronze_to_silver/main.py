@@ -8,6 +8,7 @@ from scripts.spark_init import (
     move_to_archive,
     delete_raws_in_bronze,
     write_pipeline_metadata_event,
+    has_new_files,
 )
 from bronze_to_silver.billing.calls import transform_calls
 from bronze_to_silver.billing.sms import transform_sms
@@ -96,40 +97,23 @@ def run_all():
         table_name, bucket, base_layer, silver_name, entity, transform_fn = pipeline_entry[:6]
         split_names = pipeline_entry[6] if len(pipeline_entry) > 6 else None
         print(f"\n=== {entity} ===")
-        try:
-            try:
-                raw = read_bronze_table(spark, table_name=table_name, bucket=bucket, base_layer=base_layer)
-                raw_count = raw.count()
-            except Exception as e:
-                err_msg = str(e)
-                if "PATH_NOT_FOUND" in err_msg or "does not exist" in err_msg.lower() or "not found" in err_msg.lower():
-                    print(f"No data in bronze for {table_name}, skipping")
-                    write_pipeline_metadata_event(
-                        ENDPOINT,
-                        pipeline_stage="bronze_to_silver",
-                        entity=entity,
-                        action="skip_empty",
-                        row_count=0,
-                        target=silver_name,
-                        status="skipped",
-                        extra={"raw_count": 0, "error": f"bronze path not found: {err_msg}"},
-                    )
-                    continue
-                raise
 
-            if raw_count == 0:
-                print("No data, skipping")
-                write_pipeline_metadata_event(
-                    ENDPOINT,
-                    pipeline_stage="bronze_to_silver",
-                    entity=entity,
-                    action="skip_empty",
-                    row_count=0,
-                    target=silver_name,
-                    status="skipped",
-                    extra={"raw_count": 0},
-                )
-                continue
+        if not has_new_files(ENDPOINT, bucket, table_name, base_layer):
+            print(f"No new files in bronze for {table_name}, skipping")
+            write_pipeline_metadata_event(
+                ENDPOINT,
+                pipeline_stage="bronze_to_silver",
+                entity=entity,
+                action="skip_empty",
+                row_count=0,
+                target=silver_name,
+                status="skipped",
+            )
+            continue
+
+        try:
+            raw = read_bronze_table(spark, table_name=table_name, bucket=bucket, base_layer=base_layer)
+            raw_count = raw.count()
 
             print(f"Read {raw_count} records")
             process_entity(spark, raw, transform_fn, entity, silver_name, ENDPOINT, bronze_table_name=table_name, split_names=split_names)

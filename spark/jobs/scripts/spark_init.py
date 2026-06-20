@@ -23,8 +23,9 @@ def get_spark_session(app_name: str = "DataMindAI"):
     return (
         SparkSession.builder.appName(app_name)
         .config("spark.sql.catalog.local", "org.apache.iceberg.spark.SparkCatalog")
-        .config("spark.sql.catalog.local.type", "rest")
-        .config("spark.sql.catalog.local.uri", "http://iceberg-rest:8181")
+        .config("spark.sql.catalog.local.type", "nessie")
+        .config("spark.sql.catalog.local.uri", "http://nessie:19120/api/v1")
+        .config("spark.sql.catalog.local.ref", "main")
         .config("spark.sql.catalog.local.warehouse", "s3://warehouse/")
         .config("spark.sql.catalog.local.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
         .config("spark.sql.catalog.local.s3.endpoint", "http://minio:9000")
@@ -42,6 +43,27 @@ def get_spark_session(app_name: str = "DataMindAI"):
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
         .getOrCreate()
     )
+
+
+def has_new_files(endpoint_url: str, bucket: str, table_name: str, base_layer: str = "") -> bool:
+    url = _normalize_endpoint_url(endpoint_url)
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=url,
+        aws_access_key_id="minioadmin",
+        aws_secret_access_key="minioadmin123",
+        region_name="us-east-1",
+    )
+    prefix = f"{base_layer}/{table_name}/" if base_layer else f"{table_name}/"
+    try:
+        resp = s3.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=10)
+        for obj in resp.get("Contents") or []:
+            key = obj["Key"]
+            if key.endswith(".json") and obj["Size"] > 0:
+                return True
+        return False
+    except ClientError:
+        return False
 
 
 def write_to_silver(df: DataFrame, table_name: str, bucket: str = "telecom-silver", base_layer: str = ""):
