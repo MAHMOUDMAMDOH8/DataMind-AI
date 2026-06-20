@@ -1,0 +1,44 @@
+import sys
+sys.path.insert(0, "/home/iceberg/jobs")
+
+from scripts.transformations import normalize_columns, add_rejection_reason
+from scripts.spark_init import write_pipeline_metadata_event
+
+
+def transform_calls(df, metadata_endpoint: str = "http://minio:9000"):
+    df = normalize_columns(df, "from", "from")
+    df = normalize_columns(df, "to", "to")
+    df = normalize_columns(df, "billing_info", "")
+    df = normalize_columns(df, "qos_metrics", "")
+
+    final_df = add_rejection_reason(
+        df,
+        required_columns=[
+            "event_type", "sid", "timestamp", "status",
+            "from_phone_number", "to_phone_number",
+            "call_duration_seconds", "amount", "currency", "call_type",
+        ],
+        numeric_columns=["call_duration_seconds", "amount"],
+        positive_columns=["amount"],
+        is_between_columns={"call_duration_seconds": (0, 3600)},
+    )
+
+    raw_count = df.count()
+    valid_count = final_df.filter("is_rejected = false").count()
+    rejected_count = final_df.filter("is_rejected = true").count()
+
+    write_pipeline_metadata_event(
+        metadata_endpoint,
+        pipeline_stage="bronze_to_silver",
+        entity="billing.calls",
+        action="transform",
+        row_count=valid_count,
+        target="local.silver.calls",
+        status="success",
+        extra={
+            "raw_count": raw_count,
+            "rejected_count": rejected_count,
+        },
+    )
+
+    return final_df

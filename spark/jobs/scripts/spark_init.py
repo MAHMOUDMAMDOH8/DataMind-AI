@@ -44,11 +44,16 @@ def get_spark_session(app_name: str = "DataMindAI"):
     )
 
 
+def write_to_silver(df: DataFrame, table_name: str, bucket: str = "telecom-silver", base_layer: str = ""):
+    path = f"s3a://{bucket}/{base_layer}/{table_name}/"
+    df.write.mode("append").parquet(path)
+
+
 def read_bronze_table(
     spark: SparkSession,
     table_name: str,
-    bucket: str = "telecomlakehouse",
-    base_layer: str = "bronze_layer",
+    bucket: str = "telecom-bronze",
+    base_layer: str = "",
 ):
     s3_path = f"s3a://{bucket}/{base_layer}/{table_name}/"
 
@@ -111,70 +116,65 @@ def write_to_iceberg(df: DataFrame, table_name: str, mode: str = "append"):
 def move_to_archive(
     df: DataFrame,
     table_name: str,
-    archive_bucket: str = "s3a://telecomlakehouse",
+    archive_bucket: str = "s3a://telecom-bronze",
     archive_layer: str = "archive",
+    bronze_base_layer: str = "",
 ):
     spark = df.sparkSession
-    now = datetime.now().strftime("%Y%m%d%H")
-    new_table = f"local.{table_name}_{now}"
 
-    if not spark.catalog.tableExists(new_table):
-        print(f"Table {new_table} does not exist. Creating it...")
-        df.writeTo(new_table).create()
+    if "source_file" not in df.columns:
+        print(f"No source_file column, skipping archive for {table_name}")
+        return df
+
+    jvm = spark.sparkContext._jvm
+    hadoop_conf = spark.sparkContext._jsc.hadoopConfiguration()
+
+    if "event_date" in df.columns:
+        rows = df.select("source_file", "event_date").distinct().collect()
     else:
-        print(f"Appending to existing Iceberg table: {new_table}")
-        df.writeTo(new_table).append()
+        rows = df.select("source_file").distinct().collect()
 
-    if "source_file" in df.columns:
-        jvm = spark.sparkContext._jvm
-        hadoop_conf = spark.sparkContext._jsc.hadoopConfiguration()
+    fs = None
+    archived_count = 0
 
+    for row in rows:
+        src = row.source_file
+        if not src:
+            continue
+
+        date_str = None
         if "event_date" in df.columns:
-            rows = df.select("source_file", "event_date").distinct().collect()
+            try:
+                date_str = row.event_date
+            except Exception:
+                date_str = None
+
+        if not date_str:
+            date_str = datetime.now().strftime("%Y%m%d")
         else:
-            rows = df.select("source_file").distinct().collect()
+            date_str = str(date_str).replace("-", "")
 
-        fs = None
-        archived_count = 0
+        archive_base = f"{archive_bucket}/{archive_layer}/{table_name}/{date_str}"
 
-        for row in rows:
-            src = row.source_file
-            if not src:
-                continue
-
-            date_str = None
-            if "event_date" in df.columns:
-                try:
-                    date_str = row.event_date
-                except Exception:
-                    date_str = None
-
-            if not date_str:
-                date_str = datetime.now().strftime("%Y%m%d")
-            else:
-                date_str = str(date_str).replace("-", "")
-
-            archive_base = f"{archive_bucket}/{archive_layer}/{table_name}/{date_str}"
-
-            if fs is None:
-                fs = jvm.org.apache.hadoop.fs.FileSystem.get(
-                    jvm.java.net.URI(archive_base), hadoop_conf
-                )
-
-            dest_base_path = jvm.org.apache.hadoop.fs.Path(archive_base)
-            if not fs.exists(dest_base_path):
-                fs.mkdirs(dest_base_path)
-
-            src_path = jvm.org.apache.hadoop.fs.Path(src)
-            dest_path = jvm.org.apache.hadoop.fs.Path(
-                f"{archive_base}/{src_path.getName()}"
+        if fs is None:
+            fs = jvm.org.apache.hadoop.fs.FileSystem.get(
+                jvm.java.net.URI(archive_base), hadoop_conf
             )
-            fs.rename(src_path, dest_path)
-            archived_count += 1
 
-        print(
-            f"Archived {archived_count} raw files under {archive_bucket}/{archive_layer}/{table_name}/<event_date>"
+        dest_base_path = jvm.org.apache.hadoop.fs.Path(archive_base)
+        if not fs.exists(dest_base_path):
+            fs.mkdirs(dest_base_path)
+
+        src_path = jvm.org.apache.hadoop.fs.Path(src)
+        dest_path = jvm.org.apache.hadoop.fs.Path(
+            f"{archive_base}/{src_path.getName()}"
         )
+        fs.rename(src_path, dest_path)
+        archived_count += 1
+
+    print(
+        f"Archived {archived_count} raw files under {archive_bucket}/{archive_layer}/{table_name}/<event_date>"
+    )
 
     return df
 
@@ -183,13 +183,14 @@ def delete_raws_in_bronze(
     table_name: str,
     date: str = None,
     hour: str = None,
-    bronze_bucket: str = "s3a://telecomlakehouse",
+    bronze_bucket: str = "s3a://telecom-bronze",
+    bronze_base_layer: str = "",
     spark: SparkSession = None,
 ):
     if spark is None:
         spark = SparkSession.getActiveSession() or get_spark_session()
 
-    base_path = f"{bronze_bucket}/bronze_layer/{table_name}"
+    base_path = f"{bronze_bucket}/{bronze_base_layer}/{table_name}" if bronze_base_layer else f"{bronze_bucket}/{table_name}"
 
     if date:
         base_path += f"/{date}"

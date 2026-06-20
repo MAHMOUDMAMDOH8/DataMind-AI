@@ -1,7 +1,7 @@
 
 from typing import Optional
 
-from pyspark.sql.functions import col, concat
+from pyspark.sql.functions import col, concat, concat_ws
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import when, lit
 from pyspark.sql.types import StructType
@@ -29,69 +29,45 @@ def add_rejection_reason(
     is_between_columns: Optional[dict] = None,
     ) -> DataFrame:
 
-
-    df = df.withColumn("rejection_reason", lit(""))
+    reasons = []
 
     for col_name in required_columns:
-        if col_name not in df.columns:
-            continue
-        df = df.withColumn(
-            "rejection_reason",
-            when(
-                col(col_name).isNull(),
-                concat(col("rejection_reason"), lit(f"{col_name} come with null value, ")),
-            ).otherwise(col("rejection_reason"))
-        )
+        if col_name in df.columns:
+            reasons.append(
+                when(col(col_name).isNull(), lit(f"{col_name} come with null value, "))
+            )
 
     if numeric_columns:
         for col_name in numeric_columns:
-            if col_name not in df.columns:
-                continue
-            df = df.withColumn(
-                "rejection_reason",
-                when(
-                    ~col(col_name).cast("double").isNotNull(),
-                    concat(col("rejection_reason"), lit(f"{col_name} must be numeric, ")),
-                ).otherwise(col("rejection_reason"))
-            )
+            if col_name in df.columns:
+                reasons.append(
+                    when(~col(col_name).cast("double").isNotNull(), lit(f"{col_name} must be numeric, "))
+                )
 
     if positive_columns:
         for col_name in positive_columns:
-            if col_name not in df.columns:
-                continue
-            df = df.withColumn(
-                "rejection_reason",
-                when(
-                    col(col_name).cast("double") <= 0,
-                    concat(col("rejection_reason"), lit(f"{col_name} must be positive, ")),
-                ).otherwise(col("rejection_reason"))
-            )
+            if col_name in df.columns:
+                reasons.append(
+                    when(col(col_name).cast("double") <= 0, lit(f"{col_name} must be positive, "))
+                )
 
     if is_between_columns:
         for col_name, (min_val, max_val) in is_between_columns.items():
-            if col_name not in df.columns:
-                continue
-            df = df.withColumn(
-                "rejection_reason",
-                when(
-                    (col(col_name).cast("double") < min_val)
-                    | (col(col_name).cast("double") > max_val),
-                    concat(
-                        col("rejection_reason"),
+            if col_name in df.columns:
+                reasons.append(
+                    when(
+                        (col(col_name).cast("double") < min_val)
+                        | (col(col_name).cast("double") > max_val),
                         lit(f"{col_name} must be between {min_val} and {max_val}, "),
-                    ),
-                ).otherwise(col("rejection_reason"))
-            )
+                    )
+                )
 
-    df = df.withColumn(
-        "rejection_reason",
-        when(col("rejection_reason") == "", None)
-        .otherwise(col("rejection_reason").substr(1, 1000))
+    combined = concat_ws("", *reasons) if reasons else lit("")
+
+    df = df.withColumn("rejection_reason",
+        when(combined == "", None).otherwise(combined)
     )
 
-    df = df.withColumn(
-        "is_rejected",
-        col("rejection_reason").isNotNull()
-    )
+    df = df.withColumn("is_rejected", col("rejection_reason").isNotNull())
 
     return df
