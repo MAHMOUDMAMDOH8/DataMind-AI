@@ -159,13 +159,30 @@ def read_from_iceberg(table_name: str, spark: SparkSession = None):
         raise
 
 
+def _evolve_schema(spark, full_table: str, df: DataFrame):
+    """Add any columns present in df but missing from the Iceberg table."""
+    existing_cols = {f.name.lower() for f in spark.table(full_table).schema.fields}
+    for field in df.schema.fields:
+        if field.name.lower() not in existing_cols:
+            spark_type = field.dataType.simpleString()
+            spark.sql(f"ALTER TABLE {full_table} ADD COLUMN `{field.name}` {spark_type}")
+            print(f"  Schema evolution: added column '{field.name}' ({spark_type})")
+
+
 def write_to_iceberg(df: DataFrame, table_name: str, mode: str = "append"):
     spark = df.sparkSession
     full_table = f"local.{table_name}"
 
     if not spark.catalog.tableExists(full_table):
-        df.writeTo(full_table).create()
+        # Set explicit clean location for silver tables to avoid UUID suffixes
+        writer = df.writeTo(full_table)
+        if table_name.startswith("silver."):
+            clean_name = table_name.replace("silver.", "")
+            writer = writer.tableProperty("location", f"s3://warehouse/silver/{clean_name}")
+        writer.create()
     else:
+        # Evolve schema: add any new columns before writing
+        _evolve_schema(spark, full_table, df)
         if mode == "overwrite":
             df.writeTo(full_table).overwritePartitions()
         else:
@@ -228,8 +245,12 @@ def move_to_archive(
         dest_path = jvm.org.apache.hadoop.fs.Path(
             f"{archive_base}/{src_path.getName()}"
         )
-        fs.rename(src_path, dest_path)
-        archived_count += 1
+        if fs.exists(dest_path):
+            print(f"Destination file {dest_path} already exists. Deleting source file {src_path} instead.")
+            fs.delete(src_path, False)
+        else:
+            fs.rename(src_path, dest_path)
+            archived_count += 1
 
     print(
         f"Archived {archived_count} raw files under {archive_bucket}/{archive_layer}/{table_name}/<event_date>"

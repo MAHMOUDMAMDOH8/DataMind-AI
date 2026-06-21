@@ -18,7 +18,7 @@ SILVER_BUCKET = "s3a://telecom-silver"
 
 DIM_CONFIGS = [
     {
-        "name": "dim_user",
+        "name": "silver.dim_user",
         "file": "DIM_USER.json",
         "natural_key": "msisdn",
         "sk_col": "user_sk",
@@ -26,7 +26,7 @@ DIM_CONFIGS = [
         "business_attrs": ["msisdn", "customer_type", "gender", "age_group", "city", "activation_date", "status"],
     },
     {
-        "name": "dim_device",
+        "name": "silver.dim_device",
         "file": "DIM_DEVICE.json",
         "natural_key": "imei",
         "sk_col": "device_sk",
@@ -34,7 +34,7 @@ DIM_CONFIGS = [
         "business_attrs": ["imei", "tac", "brand", "model", "os", "is_smartphone"],
     },
     {
-        "name": "dim_agent",
+        "name": "silver.dim_agent",
         "file": "dim_agent.json",
         "natural_key": "agent_id",
         "sk_col": "agent_sk",
@@ -42,7 +42,7 @@ DIM_CONFIGS = [
         "business_attrs": ["agent_id", "name", "department", "city", "status"],
     },
     {
-        "name": "dim_cell_site",
+        "name": "silver.dim_cell_site",
         "file": "dim_cell_site.json",
         "natural_key": "cell_id",
         "sk_col": "cell_sk",
@@ -78,8 +78,15 @@ def write_iceberg(df, table_name):
     spark = df.sparkSession
     full = f"local.{table_name}"
     spark.sql(f"DROP TABLE IF EXISTS {full}")
-    df.createOrReplaceTempView("_dim_iceberg_tmp")
-    spark.sql(f"CREATE TABLE {full} USING iceberg AS SELECT * FROM _dim_iceberg_tmp")
+    # Set explicit clean location for silver tables to avoid UUID suffixes
+    if table_name.startswith("silver."):
+        clean_name = table_name.replace("silver.", "")
+        location = f"s3://warehouse/silver/{clean_name}"
+        df.createOrReplaceTempView("_dim_iceberg_tmp")
+        spark.sql(f"CREATE TABLE {full} USING iceberg LOCATION '{location}' AS SELECT * FROM _dim_iceberg_tmp")
+    else:
+        df.createOrReplaceTempView("_dim_iceberg_tmp")
+        spark.sql(f"CREATE TABLE {full} USING iceberg AS SELECT * FROM _dim_iceberg_tmp")
 
 
 def load_dim(spark, cfg):
@@ -168,6 +175,10 @@ def load_dim(spark, cfg):
 
 def run():
     spark = get_spark_session("LoadDIMs")
+
+    # Ensure the 'silver' namespace exists in Nessie/Iceberg
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS local.silver")
+    print("=== Ensured 'silver' namespace exists ===")
 
     for cfg in DIM_CONFIGS:
         try:

@@ -1,11 +1,10 @@
-from scripts.spark_init import write_to_iceberg
 import sys
 sys.path.insert(0, "/home/iceberg/jobs")
 
 from scripts.spark_init import (
     get_spark_session,
     read_bronze_table,
-    write_to_silver,
+    write_to_iceberg,
     move_to_archive,
     delete_raws_in_bronze,
     write_pipeline_metadata_event,
@@ -61,7 +60,7 @@ def process_entity(spark, raw, transform_fn, entity, silver_name, metadata_endpo
         valid = result.filter("is_rejected = false")
         valid_count = valid.count()
         if valid_count > 0:
-            write_to_silver(valid, silver_name)
+            write_to_iceberg(valid, silver_name)
 
         write_rejected(result, silver_name)
 
@@ -82,16 +81,20 @@ def process_entity(spark, raw, transform_fn, entity, silver_name, metadata_endpo
 def run_all():
     spark = get_spark_session("BronzeToSilver")
 
+    # Ensure the 'silver' namespace exists in Nessie/Iceberg
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS local.silver")
+    print("=== Ensured 'silver' namespace exists ===")
+
     pipelines = [
-        ("calls", "telecom-bronze", "", "calls", "billing.calls", transform_calls),
-        ("sms", "telecom-bronze", "", "sms", "billing.sms", transform_sms),
-        ("CRM", "telecom-bronze", "", "CRM", "crm.registration", transform_crm, ["crm_registration", "crm_profile_update"]),
-        ("Network", "telecom-bronze", "", "Network", "network.events", transform_network, ["network_metrics", "network_qos_reports"]),
-        ("Payments", "telecom-bronze", "", "Payments", "payment.payments", transform_payment),
-        ("Recharge", "telecom-bronze", "", "Recharge", "recharge.recharges", transform_recharge),
-        ("Roaming", "telecom-bronze", "", "Roaming", "roaming.sessions", transform_roaming),
-        ("data_usage", "telecom-bronze", "", "DataUsage", "data_usage.sessions", transform_data_usage),
-        ("Support", "telecom-bronze", "", "Support", "support.tickets", transform_ticket),
+        ("calls",      "telecom-bronze", "", "silver.calls",              "billing.calls",    transform_calls),
+        ("sms",        "telecom-bronze", "", "silver.sms",                "billing.sms",      transform_sms),
+        ("CRM",        "telecom-bronze", "", "silver.crm_registration",   "crm.registration", transform_crm,     ["silver.crm_registration", "silver.crm_profile_update"]),
+        ("Network",    "telecom-bronze", "", "silver.network_metrics",    "network.events",   transform_network, ["silver.network_metrics", "silver.network_qos_reports"]),
+        ("Payments",   "telecom-bronze", "", "silver.payments",           "payment.payments", transform_payment),
+        ("Recharge",   "telecom-bronze", "", "silver.recharges",          "recharge.recharges", transform_recharge),
+        ("Roaming",    "telecom-bronze", "", "silver.roaming",            "roaming.sessions", transform_roaming),
+        ("data_usage", "telecom-bronze", "", "silver.data_usage",         "data_usage.sessions", transform_data_usage),
+        ("Support",    "telecom-bronze", "", "silver.support_tickets",    "support.tickets",  transform_ticket),
     ]
 
     for pipeline_entry in pipelines:
