@@ -66,10 +66,47 @@ def has_new_files(endpoint_url: str, bucket: str, table_name: str, base_layer: s
         return False
 
 
-def write_to_silver(df: DataFrame, table_name: str, bucket: str = "telecom-silver", base_layer: str = ""):
-    path = f"s3a://{bucket}/{base_layer}/{table_name}/"
-    df.write.mode("append").parquet(path)
+def read_from_iceberg(table_name, spark):
 
+    if spark is None:
+        # Try to get active SparkSession
+        try:
+            spark = SparkSession.getActiveSession()
+            if spark is None:
+                spark = get_spark_session()
+        except:
+            spark = get_spark_session()
+
+    full_table = f"local.{table_name}"
+
+    try:
+        if not spark.catalog.tableExists(full_table):
+            print(f"Table {full_table} does not exist.")
+            return None
+
+        print(f"Reading data from Iceberg table: {full_table}")
+        df = spark.table(full_table)
+        count = df.count()
+        print(f"Successfully read {count} records from {full_table}")
+
+        return df
+
+    except Exception as e:
+        print(f"Error reading data from Iceberg table: {e}")
+        raise
+
+
+def write_to_iceberg(df, table_name, mode="append"):
+    spark = df.sparkSession
+    full_table = f"local.{table_name}"
+
+    if not spark.catalog.tableExists(full_table):
+        df.writeTo(full_table).create()
+    else:
+        if mode == "overwrite":
+            df.writeTo(full_table).overwritePartitions()
+        else:
+            df.writeTo(full_table).append()
 
 def read_bronze_table(
     spark: SparkSession,

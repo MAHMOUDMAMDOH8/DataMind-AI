@@ -1,3 +1,4 @@
+from scripts.spark_init import write_to_iceberg
 import sys
 sys.path.insert(0, "/home/iceberg/jobs")
 
@@ -42,7 +43,7 @@ def process_entity(spark, raw, transform_fn, entity, silver_name, metadata_endpo
             valid_count = valid.count()
             name = split_names[i] if split_names and i < len(split_names) else (f"{silver_name}_{i}" if i > 0 else silver_name)
             if valid_count > 0:
-                write_to_silver(valid, name)
+                write_to_iceberg(valid, name)
             write_rejected(vdf, name)
 
         move_to_archive(raw, entity, bronze_base_layer=bronze_base_layer)
