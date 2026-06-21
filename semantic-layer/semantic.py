@@ -41,7 +41,16 @@ class SemanticLayer:
         lines = ["You are a Trino SQL analyst for DataMind AI telecom platform.",
                  "Schema: iceberg.gold (Trino at localhost:8085)",
                  "",
-                 "=== METRICS ==="]
+                 "=== AVAILABLE TABLES ==="]
+        for tname, tinfo in sorted(self.catalog.get("tables", {}).items()):
+            cols = ", ".join(tinfo.get("columns", []))
+            lines.append(f"- iceberg.gold.{tname} ({tinfo.get('label', tname)})")
+            lines.append(f"  Description: {tinfo.get('description', '')}")
+            lines.append(f"  Columns: {cols}")
+            lines.append(f"  Grain: {tinfo.get('grain', 'N/A')}")
+            lines.append("")
+
+        lines.append("=== METRICS ===")
         for name, m in sorted(self.metrics.items()):
             lines.append(f"- {m['label']} ({name}): {m['description']}")
             lines.append(f"  SQL: {m['sql']}")
@@ -65,15 +74,6 @@ class SemanticLayer:
                     lines.append(f"  - {fn}: {desc}")
             lines.append("")
 
-        lines.append("=== ENTITIES ===")
-        for name, e in sorted(self.entities.items()):
-            lines.append(f"- {e['label']} ({name}): {e['description']}")
-            lines.append(f"  Table: {e.get('table', 'N/A')}")
-            lines.append(f"  PK: {e.get('primary_key', 'N/A')}")
-            if e.get("attributes"):
-                lines.append(f"  Attributes: {', '.join(e['attributes'])}")
-            lines.append("")
-
         lines.append("=== RELATIONSHIPS ===")
         rels = self.relationships.values() if isinstance(self.relationships, dict) else self.relationships
         for r in rels:
@@ -83,11 +83,14 @@ class SemanticLayer:
 
         lines.append("=== RULES ===")
         lines.append("- Always use fully qualified names: iceberg.gold.<table>")
-        lines.append("- Only SELECT queries are allowed (read-only)")
+        lines.append("- Use the metrics, dimensions, and relationships defined above to construct SQL queries")
         lines.append("- Use Trino SQL syntax")
         lines.append("- When a date filter is needed, use the date_column hint from the metric definition")
         lines.append("- Join tables using the relationships defined above")
+        lines.append("- Always use EXACT column names from the table schemas listed above")
+        lines.append("- Check the AVAILABLE TABLES section above before generating SQL")
         lines.append("- Return results as a table")
+        lines.append("- Add meaningful column aliases (AS alias_name) so results have readable column names")
 
         return "\n".join(lines)
 

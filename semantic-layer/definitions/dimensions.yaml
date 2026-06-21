@@ -1,185 +1,86 @@
 dimensions:
-  customer:
-    label: Customer
-    description: Telecom customer profile
-    table: gold.customer_360
-    primary_key: customer_id
-    fields:
-      customer_id:
-        label: Customer ID
-        type: string
-        description: Unique customer identifier
-      phone_number:
-        label: Phone Number
-        type: string
-        description: Customer phone number (MSISDN)
-      plan_type:
-        label: Plan Type
-        type: category
-        description: Customer subscription plan
-        values:
-          - Prepaid
-          - Postpaid
-          - Business
-      city:
-        label: City
-        type: category
-        description: Customer city
-      region:
-        label: Region
-        type: category
-        description: Customer region
-      customer_segment:
-        label: Customer Segment
-        type: category
-        description: Customer segment classification
-        values:
-          - Gold
-          - Silver
-          - Bronze
-      behavior_profile:
-        label: Behavior Profile
-        type: category
-        description: Customer usage behavior profile
-        values:
-          - Heavy User
-          - Regular User
-          - Light User
-          - Roaming User
-      registration_date:
-        label: Registration Date
-        type: date
-        description: Customer registration date
 
-  date:
+  dim_date:
     label: Date
-    description: Date dimension for time-based analysis
-    table: gold.dim_date
+    description: Calendar date dimension for time-based analysis
+    table: iceberg.gold.dim_date
     primary_key: date_sk
     fields:
-      date_sk:
-        label: Date SK
-        type: string
-        description: Surrogate key for date
-      full_date:
-        label: Full Date
-        type: date
-        description: Calendar date
-      year:
-        label: Year
-        type: integer
-        description: Year
-      month:
-        label: Month
-        type: integer
-        description: Month number (01-12)
-      day:
-        label: Day
-        type: integer
-        description: Day of month
-      day_name:
-        label: Day Name
-        type: category
-        description: Day of week name
-      day_of_week:
-        label: Day of Week
-        type: integer
-        description: Day of week number (1=Sunday)
-      is_weekend:
-        label: Is Weekend
-        type: boolean
-        description: Whether day is weekend
-      quarter:
-        label: Quarter
-        type: integer
-        description: Calendar quarter
+      date_sk: {label: Date SK, type: string, description: Surrogate key for date joins}
+      full_date: {label: Full Date, type: date, description: Calendar date}
+      date: {label: Date, type: string, description: Date as YYYY-MM-DD string}
+      year: {label: Year, type: integer, description: Calendar year}
+      month: {label: Month, type: integer, description: Month number 01-12}
+      day: {label: Day, type: integer, description: Day of month}
+      day_name: {label: Day Name, type: category, description: Day of week name}
+      day_of_week: {label: Day of Week, type: integer, description: Day of week 1=Sunday}
+      is_weekend: {label: Is Weekend, type: boolean, description: 1 if weekend}
+      day_of_year: {label: Day of Year, type: integer, description: Day number in year}
+      quarter: {label: Quarter, type: integer, description: Calendar quarter 1-4}
 
-  geography:
-    label: Geography
-    description: Geographic location dimensions
+  dim_time:
+    label: Time
+    description: Time of day dimension for intra-day analysis
+    table: iceberg.gold.dim_time
+    primary_key: time_key
     fields:
-      city:
-        label: City
-        type: category
-        description: City name
-        sources:
-          - gold.customer_360
-          - gold.network_performance
-      region:
-        label: Region
-        type: category
-        description: Region name
-        sources:
-          - gold.customer_360
-          - gold.network_performance
-      roaming_country:
-        label: Roaming Country
-        type: category
-        description: Country where roaming occurred
-        source: gold.roaming_analytics
-      cell_site_id:
-        label: Cell Site ID
-        type: string
-        description: Cell tower identifier
-        source: gold.network_performance
+      time_key: {label: Time Key, type: integer, description: Minute of day 0-1439}
+      time_value: {label: Time Value, type: string, description: Minute of day as string}
+      hour: {label: Hour, type: string, description: Hour 00-23}
+      minute: {label: Minute, type: string, description: Minute 00-59}
+      am_pm: {label: AM/PM, type: category, description: AM or PM}
+      time_24h: {label: Time 24h, type: string, description: Time in HH:MM format}
 
-  payment_method:
-    label: Payment Method
-    description: Payment method used for transactions
-    table: gold.payment_analytics
+  dim_user_gold:
+    label: User
+    description: Customer master data dimension
+    table: iceberg.gold.dim_user_gold
+    primary_key: user_sk
     fields:
-      payment_method:
-        label: Payment Method
-        type: category
-        description: Method of payment
-        values:
-          - Credit Card
-          - Debit Card
-          - Wallet
-          - Bank Transfer
-          - Cash
+      user_sk: {label: User SK, type: integer, description: Surrogate key}
+      msisdn: {label: Phone Number, type: string, description: Customer phone number}
+      city: {label: City, type: category, description: Customer city}
+      customer_type: {label: Customer Type, type: category, description: Prepaid or Postpaid}
+      gender: {label: Gender, type: category, description: Customer gender}
+      age_group: {label: Age Group, type: category, description: Customer age group}
+      activation_date: {label: Activation Date, type: date, description: Account activation date}
+      status: {label: Status, type: category, description: Account status}
 
-  plan_type:
-    label: Plan Type
-    description: Customer subscription plan category
-    table: gold.customer_360
+  dim_device_gold:
+    label: Device
+    description: Mobile device master data dimension
+    table: iceberg.gold.dim_device_gold
+    primary_key: device_sk
     fields:
-      plan_type:
-        label: Plan Type
-        type: category
-        description: Type of telecom plan
-        values:
-          - Prepaid
-          - Postpaid
-          - Business
+      device_sk: {label: Device SK, type: integer, description: Surrogate key}
+      tac: {label: TAC, type: string, description: Type Allocation Code}
+      brand: {label: Brand, type: category, description: Device manufacturer}
+      model: {label: Model, type: string, description: Device model name}
+      os: {label: OS, type: category, description: Operating system}
+      is_smartphone: {label: Is Smartphone, type: boolean, description: Whether smartphone}
 
-  network_type:
-    label: Network Type
-    description: Type of network technology
-    table: gold.network_performance
+  dim_agent_gold:
+    label: Agent
+    description: Customer support agent dimension
+    table: iceberg.gold.dim_agent_gold
+    primary_key: agent_sk
     fields:
-      network_type:
-        label: Network Type
-        type: category
-        description: Network technology type
-        values:
-          - 4G
-          - 5G
+      agent_sk: {label: Agent SK, type: integer, description: Surrogate key}
+      agent_id: {label: Agent ID, type: string, description: Agent identifier}
+      name: {label: Name, type: string, description: Agent name}
+      department: {label: Department, type: category, description: Agent department}
+      city: {label: City, type: category, description: Agent city}
+      status: {label: Status, type: category, description: Agent status}
 
-  roaming_operator:
-    label: Roaming Operator
-    description: Foreign network operator
-    table: gold.roaming_analytics
+  dim_cell_site_gold:
+    label: Cell Site
+    description: Network cell tower dimension
+    table: iceberg.gold.dim_cell_site_gold
+    primary_key: cell_sk
     fields:
-      roaming_operator:
-        label: Roaming Operator
-        type: string
-        description: Foreign network operator name
-      roaming_type:
-        label: Roaming Type
-        type: category
-        description: Type of roaming
-        values:
-          - Data
-          - Voice
-          - SMS
+      cell_sk: {label: Cell SK, type: integer, description: Surrogate key}
+      cell_id: {label: Cell ID, type: string, description: Cell site identifier}
+      site_name: {label: Site Name, type: string, description: Cell site name}
+      city: {label: City, type: category, description: Cell site city}
+      latitude: {label: Latitude, type: float, description: GPS latitude}
+      longitude: {label: Longitude, type: float, description: GPS longitude}

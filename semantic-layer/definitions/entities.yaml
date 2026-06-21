@@ -6,12 +6,9 @@ entities:
     primary_key: customer_id
     attributes:
       - customer_id
-      - phone_number
-      - plan_type
       - city
-      - region
-      - behavior_profile
-      - customer_segment
+      - customer_type
+      - activation_date
       - total_calls
       - total_sms
       - total_data_usage_mb
@@ -22,6 +19,8 @@ entities:
       - total_revenue
       - avg_call_duration
       - avg_session_duration
+      - total_tickets
+      - last_activity_date
       - customer_lifetime_value
       - churn_score
     metrics:
