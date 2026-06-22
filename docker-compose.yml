@@ -315,7 +315,7 @@ services:
   # ── Processing (Spark + Iceberg) ────────────────────────────────────────────
 
   spark-iceberg:
-    image: tabulario/spark-iceberg
+    build: ./spark
     container_name: spark-iceberg
     profiles: [ "processing" ]
     depends_on:
