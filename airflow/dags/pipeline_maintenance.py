@@ -15,8 +15,8 @@ def check_minio_usage() -> None:
     s3 = boto3.client(
         "s3",
         endpoint_url="http://minio:9000",
-        aws_access_key_id="minioadmin",
-        aws_secret_access_key="minioadmin123",
+        aws_access_key_id="admin",
+        aws_secret_access_key="password",
         region_name="us-east-1",
     )
     buckets = ["telecom-bronze", "telecom-silver", "telecom-gold", "warehouse"]

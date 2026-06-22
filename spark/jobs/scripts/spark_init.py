@@ -30,8 +30,8 @@ def get_spark_session(app_name: str = "DataMindAI"):
         .config("spark.sql.catalog.local.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
         .config("spark.sql.catalog.local.s3.endpoint", "http://minio:9000")
         .config("spark.sql.catalog.local.s3.path-style-access", "true")
-        .config("spark.sql.catalog.local.s3.access-key-id", "minioadmin")
-        .config("spark.sql.catalog.local.s3.secret-access-key", "minioadmin123")
+        .config("spark.sql.catalog.local.s3.access-key-id", "admin")
+        .config("spark.sql.catalog.local.s3.secret-access-key", "password")
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
         .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000")
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
@@ -50,8 +50,8 @@ def has_new_files(endpoint_url: str, bucket: str, table_name: str, base_layer: s
     s3 = boto3.client(
         "s3",
         endpoint_url=url,
-        aws_access_key_id="minioadmin",
-        aws_secret_access_key="minioadmin123",
+        aws_access_key_id="admin",
+        aws_secret_access_key="password",
         region_name="us-east-1",
     )
     prefix = f"{base_layer}/{table_name}/" if base_layer else f"{table_name}/"
@@ -346,8 +346,8 @@ def write_pipeline_metadata_event(
         s3 = boto3.client(
             "s3",
             endpoint_url=url,
-            aws_access_key_id="minioadmin",
-            aws_secret_access_key="minioadmin123",
+            aws_access_key_id="admin",
+            aws_secret_access_key="password",
             region_name="us-east-1",
         )
         s3.put_object(
@@ -374,8 +374,8 @@ def load_pipeline_metadata_events(
     s3 = boto3.client(
         "s3",
         endpoint_url=url,
-        aws_access_key_id="minioadmin",
-        aws_secret_access_key="minioadmin123",
+        aws_access_key_id="admin",
+        aws_secret_access_key="password",
         region_name="us-east-1",
     )
     keys: list[tuple] = []
