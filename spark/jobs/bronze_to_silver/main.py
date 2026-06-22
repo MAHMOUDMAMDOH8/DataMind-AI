@@ -1,4 +1,4 @@
-import sys
+import sys, argparse
 sys.path.insert(0, "/home/iceberg/jobs")
 
 from scripts.spark_init import (
@@ -78,26 +78,17 @@ def process_entity(spark, raw, transform_fn, entity, silver_name, metadata_endpo
         )
 
 
-def run_all():
+def run_all(entity_filter=None):
     spark = get_spark_session("BronzeToSilver")
 
-    # Ensure the 'silver' namespace exists in Nessie/Iceberg
     spark.sql("CREATE NAMESPACE IF NOT EXISTS local.silver")
     print("=== Ensured 'silver' namespace exists ===")
 
-    pipelines = [
-        ("calls",      "telecom-bronze", "", "silver.calls",              "billing.calls",    transform_calls),
-        ("sms",        "telecom-bronze", "", "silver.sms",                "billing.sms",      transform_sms),
-        ("CRM",        "telecom-bronze", "", "silver.crm_registration",   "crm.registration", transform_crm,     ["silver.crm_registration", "silver.crm_profile_update"]),
-        ("Network",    "telecom-bronze", "", "silver.network_metrics",    "network.events",   transform_network, ["silver.network_metrics", "silver.network_qos_reports"]),
-        ("Payments",   "telecom-bronze", "", "silver.payments",           "payment.payments", transform_payment),
-        ("Recharge",   "telecom-bronze", "", "silver.recharges",          "recharge.recharges", transform_recharge),
-        ("Roaming",    "telecom-bronze", "", "silver.roaming",            "roaming.sessions", transform_roaming),
-        ("data_usage", "telecom-bronze", "", "silver.data_usage",         "data_usage.sessions", transform_data_usage),
-        ("Support",    "telecom-bronze", "", "silver.support_tickets",    "support.tickets",  transform_ticket),
-    ]
+    entries = pipelines
+    if entity_filter:
+        entries = [p for p in pipelines if p[0] == entity_filter]
 
-    for pipeline_entry in pipelines:
+    for pipeline_entry in entries:
         table_name, bucket, base_layer, silver_name, entity, transform_fn = pipeline_entry[:6]
         split_names = pipeline_entry[6] if len(pipeline_entry) > 6 else None
         print(f"\n=== {entity} ===")
@@ -137,5 +128,27 @@ def run_all():
     print("\n=== Done ===")
 
 
+pipelines = [
+    ("calls",      "telecom-bronze", "", "silver.calls",              "billing.calls",    transform_calls),
+    ("sms",        "telecom-bronze", "", "silver.sms",                "billing.sms",      transform_sms),
+    ("CRM",        "telecom-bronze", "", "silver.crm_registration",   "crm.registration", transform_crm,     ["silver.crm_registration", "silver.crm_profile_update"]),
+    ("Network",    "telecom-bronze", "", "silver.network_metrics",    "network.events",   transform_network, ["silver.network_metrics", "silver.network_qos_reports"]),
+    ("Payments",   "telecom-bronze", "", "silver.payments",           "payment.payments", transform_payment),
+    ("Recharge",   "telecom-bronze", "", "silver.recharges",          "recharge.recharges", transform_recharge),
+    ("Roaming",    "telecom-bronze", "", "silver.roaming",            "roaming.sessions", transform_roaming),
+    ("data_usage", "telecom-bronze", "", "silver.data_usage",         "data_usage.sessions", transform_data_usage),
+    ("Support",    "telecom-bronze", "", "silver.support_tickets",    "support.tickets",  transform_ticket),
+]
+
 if __name__ == "__main__":
-    run_all()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--entity", default=None, help="Run only this entity")
+    args = parser.parse_args()
+    if args.entity:
+        names = [e[0] for e in pipelines]
+        if args.entity not in names:
+            print(f"Unknown entity '{args.entity}'. Choose from: {names}")
+            sys.exit(1)
+        run_all(entity_filter=args.entity)
+    else:
+        run_all()
