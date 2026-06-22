@@ -39,7 +39,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
-    profiles: ["ingestion"]
+    profiles: [ "ingestion" ]
     environment:
       # KRaft settings
       KAFKA_NODE_ID: 1
@@ -75,7 +75,7 @@ services:
         reservations:
           memory: 512m
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
       interval: 20s
       timeout: 10s
       retries: 8
@@ -84,7 +84,7 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
     container_name: schema-registry
-    profiles: ["ingestion"]
+    profiles: [ "ingestion" ]
     depends_on:
       kafka:
         condition: service_healthy
@@ -99,16 +99,16 @@ services:
     <<: *restart
     logging: *logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/subjects"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/subjects" ]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 20s
 
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest   # pinned (was: latest)
+    image: provectuslabs/kafka-ui:latest # pinned (was: latest)
     container_name: kafka-ui
-    profiles: ["ingestion"]
+    profiles: [ "ingestion" ]
     depends_on:
       kafka:
         condition: service_healthy
@@ -128,7 +128,7 @@ services:
   nifi:
     image: apache/nifi:1.21.0
     container_name: nifi
-    profiles: ["ingestion"]
+    profiles: [ "ingestion" ]
     depends_on:
       kafka:
         condition: service_healthy
@@ -168,7 +168,7 @@ services:
         reservations:
           memory: 512m
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/nifi"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/nifi" ]
       interval: 30s
       timeout: 10s
       retries: 15
@@ -177,9 +177,9 @@ services:
   # ── Lakehouse storage ───────────────────────────────────────────────────────
 
   minio:
-    image: minio/minio   
+    image: minio/minio
     container_name: minio
-    profiles: ["storage"]
+    profiles: [ "storage" ]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -194,7 +194,7 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
-    command: ["server", "/data", "--console-address", ":9001"]
+    command: [ "server", "/data", "--console-address", ":9001" ]
     <<: *restart
     logging: *logging
     deploy:
@@ -205,22 +205,22 @@ services:
         reservations:
           memory: 256m
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 10s
 
   mc:
-    image: minio/mc   # pinned
+    image: minio/mc # pinned
     container_name: mc
-    profiles: ["storage"]
+    profiles: [ "storage" ]
     depends_on:
       minio:
         condition: service_healthy
     volumes:
       - ./scripts/init-minio.sh:/init-minio.sh:ro
-    entrypoint: ["/bin/sh", "/init-minio.sh"]
+    entrypoint: [ "/bin/sh", "/init-minio.sh" ]
     networks:
       - data_network
     logging: *logging
@@ -230,7 +230,7 @@ services:
   shared-postgres:
     image: postgres:16
     container_name: shared-postgres
-    profiles: ["storage", "orchestration"]
+    profiles: [ "storage", "orchestration" ]
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
@@ -249,15 +249,16 @@ services:
         reservations:
           memory: 128m
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root"]
+      test: [ "CMD-SHELL", "pg_isready -U root" ]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 30s
 
   nessie:
-    image: ghcr.io/projectnessie/nessie:0.108.0   # pinned — Docker Hub deprecated, use ghcr.io
+    image: ghcr.io/projectnessie/nessie:0.108.0 # pinned — Docker Hub deprecated, use ghcr.io
     container_name: nessie
-    profiles: ["storage"]
+    profiles: [ "storage" ]
     depends_on:
       shared-postgres:
         condition: service_healthy
@@ -277,7 +278,7 @@ services:
     <<: *restart
     logging: *logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:19120/api/v2/config || exit 1"]
+      test: [ "CMD-SHELL", "curl -sf http://localhost:19120/api/v2/config || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -286,7 +287,7 @@ services:
   rest:
     image: apache/iceberg-rest-fixture
     container_name: iceberg-rest
-    profiles: ["storage"]
+    profiles: [ "storage" ]
     depends_on:
       minio:
         condition: service_healthy
@@ -306,7 +307,7 @@ services:
       - data_network
     logging: *logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8181/v1/config || exit 1"]
+      test: [ "CMD-SHELL", "curl -sf http://localhost:8181/v1/config || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -317,7 +318,7 @@ services:
   spark-iceberg:
     image: tabulario/spark-iceberg
     container_name: spark-iceberg
-    profiles: ["processing"]
+    profiles: [ "processing" ]
     depends_on:
       nessie:
         condition: service_healthy
@@ -353,7 +354,7 @@ services:
         reservations:
           memory: 1g
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080 || exit 1"]
+      test: [ "CMD-SHELL", "curl -sf http://localhost:8080 || exit 1" ]
       interval: 20s
       timeout: 10s
       retries: 10
@@ -364,7 +365,7 @@ services:
   trino:
     image: trinodb/trino:476
     container_name: trino
-    profiles: ["query"]
+    profiles: [ "query" ]
     depends_on:
       nessie:
         condition: service_healthy
@@ -391,7 +392,7 @@ services:
         reservations:
           memory: 1g
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/v1/info || exit 1"]
+      test: [ "CMD-SHELL", "curl -sf http://localhost:8080/v1/info || exit 1" ]
       interval: 15s
       timeout: 10s
       retries: 15
@@ -402,7 +403,7 @@ services:
   airflow-init:
     image: apache/airflow:2.10.4-python3.11
     container_name: airflow-init
-    profiles: ["orchestration"]
+    profiles: [ "orchestration" ]
     depends_on:
       shared-postgres:
         condition: service_healthy
@@ -437,7 +438,7 @@ services:
   airflow-webserver:
     image: apache/airflow:2.10.4-python3.11
     container_name: airflow-webserver
-    profiles: ["orchestration"]
+    profiles: [ "orchestration" ]
     depends_on:
       shared-postgres:
         condition: service_healthy
@@ -468,7 +469,7 @@ services:
         reservations:
           memory: 256m
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -477,7 +478,7 @@ services:
   airflow-scheduler:
     image: apache/airflow:2.10.4-python3.11
     container_name: airflow-scheduler
-    profiles: ["orchestration"]
+    profiles: [ "orchestration" ]
     depends_on:
       shared-postgres:
         condition: service_healthy
@@ -506,7 +507,7 @@ services:
         reservations:
           memory: 256m
     healthcheck:
-      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      test: [ "CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\"" ]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -514,131 +515,131 @@ services:
 
   # ── Governance (OpenMetadata) ───────────────────────────────────────────────
 
-  openmetadata-mysql:
-    image: docker.getcollate.io/openmetadata/db:1.5.0
-    container_name: openmetadata-mysql
-    profiles: ["governance"]
-    command: "--sort_buffer_size=10M"
-    environment:
-      MYSQL_ROOT_PASSWORD: ${OPENMETADATA_MYSQL_ROOT_PASSWORD}
-    volumes:
-      - openmetadata_mysql_data:/var/lib/mysql
-    networks:
-      - data_network
-    <<: *restart
-    logging: *logging
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-          cpus: "1.0"
-        reservations:
-          memory: 256m
-    healthcheck:
-      test: ["CMD-SHELL", "mysql --user=root --password=${OPENMETADATA_MYSQL_ROOT_PASSWORD} --silent --execute 'use openmetadata_db'"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-
-  openmetadata-elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.2
-    container_name: openmetadata-elasticsearch
-    profiles: ["governance"]
-    environment:
-      discovery.type: single-node
-      ES_JAVA_OPTS: -Xms512m -Xmx512m
-      xpack.security.enabled: "false"
-    volumes:
-      - openmetadata_es_data:/usr/share/elasticsearch/data
-    networks:
-      - data_network
-    <<: *restart
-    logging: *logging
-    deploy:
-      resources:
-        limits:
-          memory: 1.5g
-          cpus: "1.0"
-        reservations:
-          memory: 512m
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qE 'green|yellow'"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
-
-  openmetadata-migrate:
-    image: docker.getcollate.io/openmetadata/server:1.5.0
-    container_name: openmetadata-migrate
-    profiles: ["governance"]
-    command: "./bootstrap/openmetadata-ops.sh migrate"
-    env_file:
-      - ./governance/openmetadata.env
-    depends_on:
-      openmetadata-mysql:
-        condition: service_healthy
-      openmetadata-elasticsearch:
-        condition: service_healthy
-    networks:
-      - data_network
-    logging: *logging
-    restart: "no"
-
-  openmetadata-server:
-    image: docker.getcollate.io/openmetadata/server:1.5.0
-    container_name: openmetadata-server
-    profiles: ["governance"]
-    env_file:
-      - ./governance/openmetadata.env
-    depends_on:
-      openmetadata-migrate:
-        condition: service_completed_successfully
-    ports:
-      - "8585:8585"
-    networks:
-      - data_network
-    <<: *restart
-    logging: *logging
-    deploy:
-      resources:
-        limits:
-          memory: 1.5g
-          cpus: "1.0"
-        reservations:
-          memory: 512m
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q http://localhost:8585/api/v1/system/version -O /dev/null || exit 1"]
-      interval: 20s
-      timeout: 10s
-      retries: 20
-      start_period: 120s
-
-  openmetadata-ingestion:
-    image: docker.getcollate.io/openmetadata/ingestion:1.5.0
-    container_name: openmetadata-ingestion
-    profiles: ["governance"]
-    command: >
-      bash -c "rm -f /opt/airflow/*.pid && exec airflow standalone"
-    env_file:
-      - ./governance/openmetadata.env
-    ports:
-      - "8080:8080"
-    depends_on:
-      openmetadata-server:
-        condition: service_healthy
-    networks:
-      - data_network
-    restart: unless-stopped
-    logging: *logging
+  #  openmetadata-mysql:
+  #    image: docker.getcollate.io/openmetadata/db:1.5.0
+  #    container_name: openmetadata-mysql
+  #    profiles: ["governance"]
+  #    command: "--sort_buffer_size=10M"
+  #    environment:
+  #      MYSQL_ROOT_PASSWORD: ${OPENMETADATA_MYSQL_ROOT_PASSWORD}
+  #    volumes:
+  #      - openmetadata_mysql_data:/var/lib/mysql
+  #    networks:
+  #      - data_network
+  #    <<: *restart
+  #    logging: *logging
+  #    deploy:
+  #      resources:
+  #        limits:
+  #          memory: 1g
+  #          cpus: "1.0"
+  #        reservations:
+  #          memory: 256m
+  #    healthcheck:
+  #      test: ["CMD-SHELL", "mysql --user=root --password=${OPENMETADATA_MYSQL_ROOT_PASSWORD} --silent --execute 'use openmetadata_db'"]
+  #      interval: 20s
+  #      timeout: 10s
+  #      retries: 10
+  #      start_period: 30s
+  #
+  #  openmetadata-elasticsearch:
+  #    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.2
+  #    container_name: openmetadata-elasticsearch
+  #    profiles: ["governance"]
+  #    environment:
+  #      discovery.type: single-node
+  #      ES_JAVA_OPTS: -Xms512m -Xmx512m
+  #      xpack.security.enabled: "false"
+  #    volumes:
+  #      - openmetadata_es_data:/usr/share/elasticsearch/data
+  #    networks:
+  #      - data_network
+  #    <<: *restart
+  #    logging: *logging
+  #    deploy:
+  #      resources:
+  #        limits:
+  #          memory: 1.5g
+  #          cpus: "1.0"
+  #        reservations:
+  #          memory: 512m
+  #    healthcheck:
+  #      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qE 'green|yellow'"]
+  #      interval: 20s
+  #      timeout: 10s
+  #      retries: 10
+  #      start_period: 60s
+  #
+  #  openmetadata-migrate:
+  #    image: docker.getcollate.io/openmetadata/server:1.5.0
+  #    container_name: openmetadata-migrate
+  #    profiles: ["governance"]
+  #    command: "./bootstrap/openmetadata-ops.sh migrate"
+  #    env_file:
+  #      - ./governance/openmetadata.env
+  #    depends_on:
+  #      openmetadata-mysql:
+  #        condition: service_healthy
+  #      openmetadata-elasticsearch:
+  #        condition: service_healthy
+  #    networks:
+  #      - data_network
+  #    logging: *logging
+  #    restart: "no"
+  #
+  #  openmetadata-server:
+  #    image: docker.getcollate.io/openmetadata/server:1.5.0
+  #    container_name: openmetadata-server
+  #    profiles: ["governance"]
+  #    env_file:
+  #      - ./governance/openmetadata.env
+  #    depends_on:
+  #      openmetadata-migrate:
+  #        condition: service_completed_successfully
+  #    ports:
+  #      - "8585:8585"
+  #    networks:
+  #      - data_network
+  #    <<: *restart
+  #    logging: *logging
+  #    deploy:
+  #      resources:
+  #        limits:
+  #          memory: 1.5g
+  #          cpus: "1.0"
+  #        reservations:
+  #          memory: 512m
+  #    healthcheck:
+  #      test: ["CMD-SHELL", "wget -q http://localhost:8585/api/v1/system/version -O /dev/null || exit 1"]
+  #      interval: 20s
+  #      timeout: 10s
+  #      retries: 20
+  #      start_period: 120s
+  #
+  #  openmetadata-ingestion:
+  #    image: docker.getcollate.io/openmetadata/ingestion:1.5.0
+  #    container_name: openmetadata-ingestion
+  #    profiles: ["governance"]
+  #    command: >
+  #      bash -c "rm -f /opt/airflow/*.pid && exec airflow standalone"
+  #    env_file:
+  #      - ./governance/openmetadata.env
+  #    ports:
+  #      - "8080:8080"
+  #    depends_on:
+  #      openmetadata-server:
+  #        condition: service_healthy
+  #    networks:
+  #      - data_network
+  #    restart: unless-stopped
+  #    logging: *logging
 
   # ── Semantic Layer (AI-powered analytics) ────────────────────────────────────
 
   semantic-layer:
     build: ./semantic-layer
     container_name: semantic-layer
-    profiles: ["analytics"]
+    profiles: [ "analytics" ]
     ports:
       - "8000:8000"
     environment:
@@ -654,7 +655,7 @@ services:
     restart: unless-stopped
     logging: *logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -665,14 +666,14 @@ services:
   gx-gateway:
     build: ./services/gx-gateway
     container_name: gx-gateway
-    profiles: ["quality"]
+    profiles: [ "quality" ]
     ports:
       - "3000:3000"
     networks:
       - data_network
     logging: *logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/health" ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -693,6 +694,6 @@ volumes:
   nifi_provenance:
   kafka_data:
   spark_shared:
-  shared_postgres_data:      # replaces nessie_db_data + airflow_postgres_data
+  shared_postgres_data: # replaces nessie_db_data + airflow_postgres_data
   openmetadata_mysql_data:
   openmetadata_es_data:
