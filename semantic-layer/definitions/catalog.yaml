@@ -1,6 +1,6 @@
 name: DataMind AI Telecom
 description: Semantic Layer catalog for DataMind AI telecom analytics platform
-version: 1.1.0
+version: 1.2.0
 
 database:
   engine: trino
@@ -16,104 +16,104 @@ tables:
     description: Unified customer profile with usage, revenue, and behavior
     grain: one row per customer
     partition: region
-    columns: [customer_id, city, customer_type, activation_date, total_calls, total_sms, total_data_usage_mb, total_roaming_events, total_roaming_charges, total_payments, total_recharges, total_revenue, avg_call_duration, avg_session_duration, total_tickets, last_activity_date, customer_lifetime_value, churn_score]
+    columns: [customer_sk, gender, phone_number, plan_type, city, region, behavior_profile, registration_date, customer_segment, total_calls, total_sms, total_data_usage_mb, total_roaming_events, total_roaming_charges, total_payments, total_recharges, total_revenue, avg_call_duration, avg_session_duration, total_tickets, total_complaints, last_activity_date, customer_lifetime_value, churn_score]
 
   daily_revenue:
     label: Daily Revenue
     description: Daily financial performance by service type
     grain: one row per day
-    partition: revenue_date
-    columns: [date_sk, revenue_date, call_revenue, sms_revenue, roaming_revenue, payment_revenue, recharge_revenue, total_revenue, successful_payments, failed_payments, active_customers]
+    partition: date
+    columns: [date_sk, date, total_revenue, total_payment_amount, total_recharge_amount, total_roaming_charges, total_sms_charges, total_call_charges]
 
   customer_usage_daily:
     label: Customer Usage Daily
     description: Daily per-customer usage metrics
     grain: one row per customer per day
-    partition: usage_date
-    columns: [date_sk, usage_date, customer_id, calls_count, total_call_duration_seconds, sms_count, total_data_usage_mb, roaming_usage_mb, roaming_events, session_count, avg_session_duration_seconds]
+    partition: date
+    columns: [customer_sk, phone_number, date, total_calls, total_call_duration, avg_call_duration, total_data_usage_mb, total_sms, total_payment_amount, total_recharge_amount, total_roaming_data_usage_mb, total_roaming_sessions]
 
   payment_analytics:
     label: Payment Analytics
     description: Payment transaction performance by method
     grain: one row per day per payment method
     partition: payment_date
-    columns: [date_sk, payment_date, payment_method, transaction_count, successful_transactions, failed_transactions, total_amount, avg_transaction_amount, success_rate]
+    columns: [payment_date, date_sk, payment_method, transaction_count, successful_transactions, failed_transactions, total_amount, avg_transaction_amount, success_rate]
 
   recharge_analytics:
     label: Recharge Analytics
     description: Recharge transaction performance by method
     grain: one row per day per payment method
     partition: recharge_date
-    columns: [date_sk, recharge_date, payment_method, recharge_count, total_recharge_amount, avg_recharge_amount, unique_customers]
+    columns: [recharge_date, date_sk, payment_method, transaction_count, successful_transactions, failed_transactions, processing_transactions, pending_transactions, total_amount, avg_transaction_amount, success_rate]
 
   roaming_analytics:
     label: Roaming Analytics
     description: International roaming performance by country
     grain: one row per country per day
     partition: roaming_date
-    columns: [date_sk, roaming_date, roaming_country, roaming_operator, roaming_type, roaming_events, unique_customers, total_duration_seconds, total_data_used_mb, total_roaming_charges]
+    columns: [roaming_date, date_sk, roaming_country, roaming_operator, roaming_type, roaming_events, unique_customers, total_duration_seconds, total_data_used_mb, total_roaming_charges]
 
   network_performance:
     label: Network Performance
     description: Network health and service quality by cell site
     grain: one row per cell site per day
     partition: performance_date
-    columns: [date_sk, performance_date, cell_site_id, city, region, network_type, avg_active_subscribers, avg_throughput_mbps, avg_cpu_utilization_pct, avg_memory_utilization_pct, avg_mos_score, avg_jitter_ms, avg_packet_loss_pct, avg_latency_ms, network_health_score]
+    columns: [performance_date, cell_site_id, city, region, network_type, avg_active_subscribers, avg_throughput_mbps, avg_cpu_utilization_pct, avg_memory_utilization_pct, avg_mos_score, avg_jitter_ms, avg_packet_loss_pct, avg_latency_ms, network_health_score]
 
   support_analytics:
     label: Support Analytics
     description: Customer support performance metrics
     grain: one row per day
     partition: support_date
-    columns: [date_sk, support_date, tickets_created, tickets_resolved, complaints_received, avg_resolution_time_seconds, avg_wait_time_seconds, avg_satisfaction_score, escalation_rate, callback_request_rate, first_call_resolution_rate]
+    columns: [support_date, date_sk, tickets_created, tickets_resolved, complaints_received, avg_resolution_time_seconds, avg_wait_time_seconds, avg_satisfaction_score, escalation_rate, callback_request_rate, first_call_resolution_rate]
 
   fraud_monitoring:
     label: Fraud Monitoring
     description: Fraud and risk monitoring by customer
     grain: one row per customer per day
     partition: fraud_date
-    columns: [date_sk, fraud_date, customer_id, suspicious_calls, suspicious_sessions, avg_risk_score, max_risk_score, fraud_events]
+    columns: [fraud_date, customer_id, suspicious_calls, suspicious_sessions, avg_risk_score, max_risk_score, fraud_events]
 
   dim_date:
     label: Date Dimension
     description: Date lookup with calendar attributes
     grain: one row per day
-    columns: [date_sk, full_date, date, year, month, day, day_name, day_of_week, is_weekend, day_of_year, quarter]
+    columns: [date_sk, full_date, date, day_name, day_of_week, is_weekend, day_of_year, quarter, year, month, day]
 
   dim_time:
     label: Time Dimension
     description: Time of day lookup
     grain: one row per minute
-    columns: [time_key, time_value, hour, minute, am_pm, time_24h]
+    columns: [time_key, time_value, hour, minute, am_pm]
 
-  dim_user_gold:
+  dim_user:
     label: User Dimension
     description: Customer master data
     grain: one row per user
-    columns: [user_sk, msisdn, city, customer_type, gender, age_group, activation_date, status]
+    columns: [user_sk, user_id, phone_number, plan_type, gender, age_group, city, activation_date, status, effective_from, effective_to, is_current]
 
-  dim_device_gold:
+  dim_device:
     label: Device Dimension
     description: Device master data
     grain: one row per device model
-    columns: [device_sk, tac, brand, model, os, is_smartphone]
+    columns: [device_sk, tac, brand, model]
 
-  dim_agent_gold:
+  dim_agent:
     label: Agent Dimension
     description: Customer support agent master data
     grain: one row per agent
     columns: [agent_sk, agent_id, name, department, city, status]
 
-  dim_cell_site_gold:
+  dim_cell_site:
     label: Cell Site Dimension
     description: Network cell site master data
     grain: one row per cell site
-    columns: [cell_sk, cell_id, site_name, city, latitude, longitude]
+    columns: [cell_sk, cell_id, city, site_name, latitude, longitude]
 
 compliance:
   pii_columns:
-    - dim_user_gold.msisdn
-    - customer_360.customer_id
+    - dim_user.phone_number
+    - customer_360.phone_number
   sensitive_metrics:
     - fraud_monitoring.avg_risk_score
     - fraud_monitoring.max_risk_score

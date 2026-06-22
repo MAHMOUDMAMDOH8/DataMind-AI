@@ -174,18 +174,30 @@ def write_to_iceberg(df: DataFrame, table_name: str, mode: str = "append"):
     full_table = f"local.{table_name}"
 
     if not spark.catalog.tableExists(full_table):
-        # Set explicit clean location for silver tables to avoid UUID suffixes
+        # Set explicit clean location to avoid UUID suffixes
         writer = df.writeTo(full_table)
         if table_name.startswith("silver."):
             clean_name = table_name.replace("silver.", "")
             writer = writer.tableProperty("location", f"s3://warehouse/silver/{clean_name}")
+        elif table_name.startswith("gold."):
+            clean_name = table_name.replace("gold.", "")
+            writer = writer.tableProperty("location", f"s3://warehouse/gold/{clean_name}")
         writer.create()
     else:
-        # Evolve schema: add any new columns before writing
-        _evolve_schema(spark, full_table, df)
         if mode == "overwrite":
-            df.writeTo(full_table).overwritePartitions()
+            # Drop and recreate for full overwrite (gold marts)
+            spark.sql(f"DROP TABLE IF EXISTS {full_table}")
+            writer = df.writeTo(full_table)
+            if table_name.startswith("silver."):
+                clean_name = table_name.replace("silver.", "")
+                writer = writer.tableProperty("location", f"s3://warehouse/silver/{clean_name}")
+            elif table_name.startswith("gold."):
+                clean_name = table_name.replace("gold.", "")
+                writer = writer.tableProperty("location", f"s3://warehouse/gold/{clean_name}")
+            writer.create()
         else:
+            # Evolve schema: add any new columns before appending
+            _evolve_schema(spark, full_table, df)
             df.writeTo(full_table).append()
 
 

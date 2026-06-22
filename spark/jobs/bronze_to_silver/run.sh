@@ -1,0 +1,1 @@
+docker exec spark-iceberg spark-submit --master local[*] --packages org.apache.hadoop:hadoop-aws:3.3.4,software.amazon.awssdk:s3:2.24.8 /home/iceberg/jobs/bronze_to_silver/main.py 2>&1 | Select-String "^=== |^Read |^Archived |^No files found|^Deleted |^ERROR|^No new|  Rejected|Successfully stopped|^=== Done|Schema evolution"

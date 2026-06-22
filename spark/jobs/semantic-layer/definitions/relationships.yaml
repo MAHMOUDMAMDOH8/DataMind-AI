@@ -1,4 +1,26 @@
 relationships:
+  customer_to_payments:
+    label: Customer to Payments
+    description: Links customers to their payment transactions
+    from_entity: customer
+    to_entity: payment
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.payment_analytics
+      condition: customer.customer_id = payment.customer_id
+
+  customer_to_recharges:
+    label: Customer to Recharges
+    description: Links customers to their recharge history
+    from_entity: customer
+    to_entity: recharge
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.recharge_analytics
+      condition: customer.customer_id = recharge.customer_id
+
   customer_to_usage:
     label: Customer to Usage
     description: Links customers to their daily usage
@@ -8,7 +30,18 @@ relationships:
     join:
       from_table: gold.customer_360
       to_table: gold.customer_usage_daily
-      condition: customer.phone_number = usage.phone_number
+      condition: customer.customer_id = usage.customer_id
+
+  customer_to_roaming:
+    label: Customer to Roaming
+    description: Links customers to roaming events
+    from_entity: customer
+    to_entity: roaming_event
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.roaming_analytics
+      condition: customer.customer_id = roaming_event.customer_id
 
   customer_to_fraud:
     label: Customer to Fraud
@@ -19,7 +52,18 @@ relationships:
     join:
       from_table: gold.customer_360
       to_table: gold.fraud_monitoring
-      condition: customer.phone_number = fraud_event.customer_id
+      condition: customer.customer_id = fraud_event.customer_id
+
+  customer_to_support:
+    label: Customer to Support
+    description: Links customers to support tickets
+    from_entity: customer
+    to_entity: support_ticket
+    type: one_to_many
+    join:
+      from_table: gold.customer_360
+      to_table: gold.support_analytics
+      condition: customer.customer_id = support_ticket.customer_id
 
   date_to_daily_revenue:
     label: Date to Daily Revenue

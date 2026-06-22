@@ -29,39 +29,40 @@ dimensions:
       hour: {label: Hour, type: string, description: Hour 00-23}
       minute: {label: Minute, type: string, description: Minute 00-59}
       am_pm: {label: AM/PM, type: category, description: AM or PM}
+      time_24h: {label: Time 24h, type: string, description: Time in HH:MM format}
 
-  dim_user:
+  dim_user_gold:
     label: User
     description: Customer master data dimension
-    table: iceberg.gold.dim_user
+    table: iceberg.gold.dim_user_gold
     primary_key: user_sk
     fields:
       user_sk: {label: User SK, type: integer, description: Surrogate key}
-      user_id: {label: User ID, type: string, description: Original user identifier}
-      phone_number: {label: Phone Number, type: string, description: Customer phone number}
-      plan_type: {label: Plan Type, type: category, description: Prepaid or Postpaid}
+      msisdn: {label: Phone Number, type: string, description: Customer phone number}
+      city: {label: City, type: category, description: Customer city}
+      customer_type: {label: Customer Type, type: category, description: Prepaid or Postpaid}
       gender: {label: Gender, type: category, description: Customer gender}
       age_group: {label: Age Group, type: category, description: Customer age group}
-      city: {label: City, type: category, description: Customer city}
       activation_date: {label: Activation Date, type: date, description: Account activation date}
       status: {label: Status, type: category, description: Account status}
-      is_current: {label: Is Current, type: boolean, description: Whether this is the current record}
 
-  dim_device:
+  dim_device_gold:
     label: Device
     description: Mobile device master data dimension
-    table: iceberg.gold.dim_device
+    table: iceberg.gold.dim_device_gold
     primary_key: device_sk
     fields:
       device_sk: {label: Device SK, type: integer, description: Surrogate key}
       tac: {label: TAC, type: string, description: Type Allocation Code}
       brand: {label: Brand, type: category, description: Device manufacturer}
       model: {label: Model, type: string, description: Device model name}
+      os: {label: OS, type: category, description: Operating system}
+      is_smartphone: {label: Is Smartphone, type: boolean, description: Whether smartphone}
 
-  dim_agent:
+  dim_agent_gold:
     label: Agent
     description: Customer support agent dimension
-    table: iceberg.gold.dim_agent
+    table: iceberg.gold.dim_agent_gold
     primary_key: agent_sk
     fields:
       agent_sk: {label: Agent SK, type: integer, description: Surrogate key}
@@ -71,15 +72,15 @@ dimensions:
       city: {label: City, type: category, description: Agent city}
       status: {label: Status, type: category, description: Agent status}
 
-  dim_cell_site:
+  dim_cell_site_gold:
     label: Cell Site
     description: Network cell tower dimension
-    table: iceberg.gold.dim_cell_site
+    table: iceberg.gold.dim_cell_site_gold
     primary_key: cell_sk
     fields:
       cell_sk: {label: Cell SK, type: integer, description: Surrogate key}
       cell_id: {label: Cell ID, type: string, description: Cell site identifier}
-      city: {label: City, type: category, description: Cell site city}
       site_name: {label: Site Name, type: string, description: Cell site name}
+      city: {label: City, type: category, description: Cell site city}
       latitude: {label: Latitude, type: float, description: GPS latitude}
       longitude: {label: Longitude, type: float, description: GPS longitude}

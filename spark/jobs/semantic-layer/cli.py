@@ -259,30 +259,5 @@ def chat():
     console.print("  [dim]" + "-" * 50 + "[/dim]")
 
 
-def ask(question):
-    sl = SemanticLayer()
-    system_prompt = get_system_prompt(sl)
-    client_kwargs = {"api_key": OPENAI_API_KEY}
-    if OPENAI_BASE_URL:
-        client_kwargs["base_url"] = OPENAI_BASE_URL
-    client = OpenAI(**client_kwargs)
-    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": question}]
-    response = client.chat.completions.create(model=OPENAI_MODEL, messages=messages, temperature=0.1)
-    reply = response.choices[0].message.content
-    sql = extract_sql(reply)
-    if sql:
-        print(f"-- SQL:\n{sql}\n")
-        result = sl.execute_query(sql)
-        if "error" in result:
-            print(f"Error: {result['error']}")
-        else:
-            print_table(result["columns"], result["rows"])
-            print(f"\n{result['row_count']} rows")
-    else:
-        print(reply)
-
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        ask(" ".join(sys.argv[1:]))
-    else:
-        chat()
+    chat()

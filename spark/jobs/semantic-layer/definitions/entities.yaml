@@ -3,16 +3,12 @@ entities:
     label: Customer
     description: A telecom customer with complete profile
     table: gold.customer_360
-    primary_key: phone_number
+    primary_key: customer_id
     attributes:
-      - phone_number
-      - gender
-      - plan_type
+      - customer_id
       - city
-      - region
-      - behavior_profile
-      - registration_date
-      - customer_segment
+      - customer_type
+      - activation_date
       - total_calls
       - total_sms
       - total_data_usage_mb
@@ -24,7 +20,6 @@ entities:
       - avg_call_duration
       - avg_session_duration
       - total_tickets
-      - total_complaints
       - last_activity_date
       - customer_lifetime_value
       - churn_score
@@ -70,14 +65,10 @@ entities:
     attributes:
       - recharge_date
       - payment_method
-      - transaction_count
-      - successful_transactions
-      - failed_transactions
-      - processing_transactions
-      - pending_transactions
-      - total_amount
-      - avg_transaction_amount
-      - success_rate
+      - recharge_count
+      - total_recharge_amount
+      - avg_recharge_amount
+      - unique_customers
     metrics:
       - recharge_count
       - total_recharge_amount
@@ -189,19 +180,18 @@ entities:
     label: Customer Usage
     description: Daily customer usage summary
     table: gold.customer_usage_daily
-    primary_key: phone_number
+    primary_key: usage_date
     attributes:
-      - phone_number
-      - date
-      - total_calls
-      - total_call_duration
-      - avg_call_duration
+      - usage_date
+      - customer_id
+      - calls_count
+      - total_call_duration_seconds
+      - sms_count
       - total_data_usage_mb
-      - total_sms
-      - total_payment_amount
-      - total_recharge_amount
-      - total_roaming_data_usage_mb
-      - total_roaming_sessions
+      - roaming_usage_mb
+      - roaming_events
+      - session_count
+      - avg_session_duration_seconds
     metrics:
       - daily_calls_count
       - daily_data_usage
@@ -214,15 +204,18 @@ entities:
     label: Daily Revenue
     description: Daily revenue summary by service
     table: gold.daily_revenue
-    primary_key: date
+    primary_key: revenue_date
     attributes:
-      - date
+      - revenue_date
+      - call_revenue
+      - sms_revenue
+      - roaming_revenue
+      - payment_revenue
+      - recharge_revenue
       - total_revenue
-      - total_payment_amount
-      - total_recharge_amount
-      - total_roaming_charges
-      - total_sms_charges
-      - total_call_charges
+      - successful_payments
+      - failed_payments
+      - active_customers
     metrics:
       - revenue
       - call_revenue
