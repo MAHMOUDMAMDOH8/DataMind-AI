@@ -252,8 +252,7 @@ services:
       test: [ "CMD-SHELL", "pg_isready -U root" ]
       interval: 10s
       timeout: 5s
-      retries: 15
-      start_period: 30s
+      retries: 10
 
   nessie:
     image: ghcr.io/projectnessie/nessie:0.108.0 # pinned — Docker Hub deprecated, use ghcr.io
@@ -401,7 +400,9 @@ services:
   # ── Orchestration (Apache Airflow — uses shared-postgres) ───────────────────
 
   airflow-init:
-    image: apache/airflow:2.10.4-python3.11
+    build:
+      context: .
+      dockerfile: ./airflow/Dockerfile
     container_name: airflow-init
     profiles: [ "orchestration" ]
     depends_on:
@@ -421,6 +422,7 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
+      - ./source:/opt/airflow/source
     user: "0:0"
     entrypoint: /bin/bash
     command:
@@ -436,7 +438,9 @@ services:
     logging: *logging
 
   airflow-webserver:
-    image: apache/airflow:2.10.4-python3.11
+    build:
+      context: .
+      dockerfile: ./airflow/Dockerfile
     container_name: airflow-webserver
     profiles: [ "orchestration" ]
     depends_on:
@@ -456,7 +460,9 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
-    user: "50000:0"
+      - ./source:/opt/airflow/source
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: "0:0"
     networks:
       - data_network
     <<: *restart
@@ -476,7 +482,9 @@ services:
       start_period: 60s
 
   airflow-scheduler:
-    image: apache/airflow:2.10.4-python3.11
+    build:
+      context: .
+      dockerfile: ./airflow/Dockerfile
     container_name: airflow-scheduler
     profiles: [ "orchestration" ]
     depends_on:
@@ -494,7 +502,9 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
-    user: "50000:0"
+      - ./source:/opt/airflow/source
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: "0:0"
     networks:
       - data_network
     <<: *restart
