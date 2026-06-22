@@ -2,6 +2,7 @@ from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.utils.dates import days_ago
 import json
 import subprocess
@@ -95,6 +96,7 @@ with DAG(
 
     check_conn >> scan
 
+    entity_tasks = []
     for entity, silver_name, _ in ENTITIES:
         task_id = f"transform_{entity}"
         entity_arg = entity
@@ -110,3 +112,14 @@ with DAG(
             """,
         )
         scan >> t
+        entity_tasks.append(t)
+
+    trigger_gold = TriggerDagRunOperator(
+        task_id="trigger_silver_to_gold",
+        trigger_dag_id="silver_to_gold",
+        execution_date="{{ execution_date }}",
+        reset_dag_run=True,
+        trigger_rule="all_done",
+    )
+
+    entity_tasks >> trigger_gold
