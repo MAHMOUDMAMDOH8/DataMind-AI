@@ -11,8 +11,5 @@ USER airflow
 
 COPY source/requirements.txt /tmp/requirements-source.txt
 
-RUN pip install --no-cache-dir \
-    apache-airflow-providers-apache-spark \
-    docker \
-    && pip install --no-cache-dir -r /tmp/requirements-source.txt \
+RUN pip install --no-cache-dir -r /tmp/requirements-source.txt \
     && rm -f /tmp/requirements-source.txt
