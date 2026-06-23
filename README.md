@@ -135,6 +135,52 @@ Use `--clean` to disable intentional data-quality defects in generated events.
 
 Optional: copy `.env.example` to `.env` for local URL defaults.
 
+### 5. One-shot Spark (without Airflow)
+
+Run the Spark ETL pipelines directly for development/testing without Airflow.
+
+#### Bronze → Silver (all entities)
+
+```bash
+# PowerShell (from host):
+docker exec spark-iceberg spark-submit --master local[*] /home/iceberg/jobs/bronze_to_silver/test.py
+
+# Or via the convenience script:
+./spark/jobs/bronze_to_silver/run.sh
+```
+
+#### Bronze → Silver (single entity)
+
+```bash
+docker exec spark-iceberg spark-submit --master local[*] /home/iceberg/jobs/bronze_to_silver/main.py --entity calls
+docker exec spark-iceberg spark-submit --master local[*] /home/iceberg/jobs/bronze_to_silver/main.py --entity Support
+```
+
+Entities: `calls`, `sms`, `CRM`, `Network`, `Payments`, `Recharge`, `Roaming`, `data_usage`, `Support`
+
+#### Silver → Gold (dims + all marts)
+
+```bash
+# Inside the spark-iceberg container:
+docker exec spark-iceberg bash /home/iceberg/jobs/silver_to_gold/run_all_silver_to_gold.sh
+
+# Or step by step:
+docker exec spark-iceberg spark-submit --master local[*] /home/iceberg/jobs/silver_to_gold/Dims/main.py
+docker exec spark-iceberg spark-submit --master local[*] /home/iceberg/jobs/silver_to_gold/marts/customer_360.py
+```
+
+#### Prerequisite
+
+Ensure the `iceberg-rest` container is running before any Spark job:
+
+```bash
+docker start iceberg-rest
+```
+
+Check with `docker ps | findstr iceberg-rest`.
+
+---
+
 ### Repository layout
 
 ```text

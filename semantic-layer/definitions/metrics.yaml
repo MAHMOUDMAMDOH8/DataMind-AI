@@ -24,7 +24,7 @@ metrics:
   call_revenue:
     label: Call Revenue
     description: Revenue from voice calls
-    sql: SUM(call_revenue)
+    sql: SUM(total_call_charges)
     table: gold.daily_revenue
     type: sum
     source: gold.daily_revenue
@@ -32,7 +32,7 @@ metrics:
   sms_revenue:
     label: SMS Revenue
     description: Revenue from SMS messages
-    sql: SUM(sms_revenue)
+    sql: SUM(total_sms_charges)
     table: gold.daily_revenue
     type: sum
     source: gold.daily_revenue
@@ -40,7 +40,7 @@ metrics:
   roaming_revenue:
     label: Roaming Revenue
     description: Revenue from international roaming
-    sql: SUM(roaming_revenue)
+    sql: SUM(total_roaming_charges)
     table: gold.daily_revenue
     type: sum
     source: gold.daily_revenue
@@ -48,7 +48,7 @@ metrics:
   recharge_revenue:
     label: Recharge Revenue
     description: Revenue from customer recharges
-    sql: SUM(recharge_revenue)
+    sql: SUM(total_recharge_amount)
     table: gold.daily_revenue
     type: sum
     source: gold.daily_revenue
@@ -118,7 +118,7 @@ metrics:
   daily_calls_count:
     label: Daily Calls per Customer
     description: Average number of calls per customer per day
-    sql: SUM(calls_count)
+    sql: SUM(total_calls)
     table: gold.customer_usage_daily
     type: sum
     source: gold.customer_usage_daily
@@ -160,7 +160,7 @@ metrics:
   recharge_count:
     label: Recharge Count
     description: Total number of recharge transactions
-    sql: SUM(recharge_count)
+    sql: SUM(transaction_count)
     table: gold.recharge_analytics
     type: sum
     source: gold.recharge_analytics
@@ -168,7 +168,7 @@ metrics:
   total_recharge_amount:
     label: Total Recharge Amount
     description: Total value of all recharges
-    sql: SUM(total_recharge_amount)
+    sql: SUM(total_amount)
     table: gold.recharge_analytics
     type: sum
     source: gold.recharge_analytics
@@ -176,17 +176,9 @@ metrics:
   avg_recharge_amount:
     label: Avg Recharge Amount
     description: Average recharge value
-    sql: AVG(avg_recharge_amount)
+    sql: AVG(avg_transaction_amount)
     table: gold.recharge_analytics
     type: avg
-    source: gold.recharge_analytics
-
-  unique_customers_by_recharge:
-    label: Unique Recharge Customers
-    description: Distinct customers who performed recharges
-    sql: SUM(unique_customers)
-    table: gold.recharge_analytics
-    type: sum
     source: gold.recharge_analytics
 
   roaming_events:

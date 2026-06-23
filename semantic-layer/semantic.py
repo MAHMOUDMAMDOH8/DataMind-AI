@@ -88,9 +88,11 @@ class SemanticLayer:
         lines.append("- When a date filter is needed, use the date_column hint from the metric definition")
         lines.append("- Join tables using the relationships defined above")
         lines.append("- Always use EXACT column names from the table schemas listed above")
+        lines.append("- customer_360 already has total_revenue per customer pre-calculated — do NOT join customer_usage_daily to get revenue")
         lines.append("- Check the AVAILABLE TABLES section above before generating SQL")
         lines.append("- Return results as a table")
         lines.append("- Add meaningful column aliases (AS alias_name) so results have readable column names")
+        lines.append("- PRIVACY: Never include phone_number in the SELECT clause — use customer_sk or other non-PII identifiers instead")
 
         return "\n".join(lines)
 

@@ -1,0 +1,141 @@
+import sys
+sys.path.insert(0, "/home/iceberg/jobs")
+
+from scripts.spark_init import (
+    get_spark_session,
+    read_bronze_table,
+    write_to_iceberg,
+    move_to_archive,
+    delete_raws_in_bronze,
+    write_pipeline_metadata_event,
+    has_new_files,
+)
+from bronze_to_silver.billing.calls import transform_calls
+from bronze_to_silver.billing.sms import transform_sms
+from bronze_to_silver.data_usage.data_usage import transform_data_usage
+from bronze_to_silver.crm.CRM import transform_crm
+from bronze_to_silver.network.network import transform_network
+from bronze_to_silver.payment_and_recharge.payment import transform_payment
+from bronze_to_silver.payment_and_recharge.recharge import transform_recharge
+from bronze_to_silver.roaming.roaming import transform_roaming
+from bronze_to_silver.support.ticket import transform_ticket
+
+ENDPOINT = "http://minio:9000"
+
+
+def write_rejected(df, rejected_entity):
+    rejected = df.filter("is_rejected = true")
+    rejected_count = rejected.count()
+    if rejected_count > 0:
+        path = f"s3a://telecom-bronze/archive/rejected/{rejected_entity}/"
+        rejected.write.mode("append").parquet(path)
+        print(f"  Rejected {rejected_count} records -> archive/rejected/{rejected_entity}")
+
+
+def process_entity(spark, raw, transform_fn, entity, silver_name, metadata_endpoint, bronze_base_layer="", bronze_table_name=None, split_names=None):
+    bronze_table = bronze_table_name or entity
+    result = transform_fn(raw, metadata_endpoint=metadata_endpoint)
+
+    if isinstance(result, tuple):
+        for i, vdf in enumerate(result):
+            valid = vdf.filter("is_rejected = false")
+            valid_count = valid.count()
+            name = split_names[i] if split_names and i < len(split_names) else (f"{silver_name}_{i}" if i > 0 else silver_name)
+            if valid_count > 0:
+                write_to_iceberg(valid, name)
+            write_rejected(vdf, name)
+
+        move_to_archive(raw, entity, bronze_base_layer=bronze_base_layer)
+        delete_raws_in_bronze(bronze_table, bronze_base_layer=bronze_base_layer)
+
+        write_pipeline_metadata_event(
+            metadata_endpoint,
+            pipeline_stage="bronze_to_silver",
+            entity=entity,
+            action="archive_and_cleanup",
+            target=silver_name,
+            status="success",
+        )
+    else:
+        valid = result.filter("is_rejected = false")
+        valid_count = valid.count()
+        if valid_count > 0:
+            write_to_iceberg(valid, silver_name)
+
+        write_rejected(result, silver_name)
+
+        move_to_archive(valid, entity, bronze_base_layer=bronze_base_layer)
+        delete_raws_in_bronze(bronze_table, bronze_base_layer=bronze_base_layer)
+
+        write_pipeline_metadata_event(
+            metadata_endpoint,
+            pipeline_stage="bronze_to_silver",
+            entity=entity,
+            action="archive_and_cleanup",
+            row_count=valid_count,
+            target=silver_name,
+            status="success",
+        )
+
+
+def run_all():
+    spark = get_spark_session("BronzeToSilver")
+
+    # Ensure the 'silver' namespace exists in Nessie/Iceberg
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS local.silver")
+    print("=== Ensured 'silver' namespace exists ===")
+
+    pipelines = [
+        ("calls",      "telecom-bronze", "", "silver.calls",              "billing.calls",    transform_calls),
+        ("sms",        "telecom-bronze", "", "silver.sms",                "billing.sms",      transform_sms),
+        ("CRM",        "telecom-bronze", "", "silver.crm_registration",   "crm.registration", transform_crm,     ["silver.crm_registration", "silver.crm_profile_update"]),
+        ("Network",    "telecom-bronze", "", "silver.network_metrics",    "network.events",   transform_network, ["silver.network_metrics", "silver.network_qos_reports"]),
+        ("Payments",   "telecom-bronze", "", "silver.payments",           "payment.payments", transform_payment),
+        ("Recharge",   "telecom-bronze", "", "silver.recharges",          "recharge.recharges", transform_recharge),
+        ("Roaming",    "telecom-bronze", "", "silver.roaming",            "roaming.sessions", transform_roaming),
+        ("data_usage", "telecom-bronze", "", "silver.data_usage",         "data_usage.sessions", transform_data_usage),
+        ("Support",    "telecom-bronze", "", "silver.support_tickets",    "support.tickets",  transform_ticket),
+    ]
+
+    for pipeline_entry in pipelines:
+        table_name, bucket, base_layer, silver_name, entity, transform_fn = pipeline_entry[:6]
+        split_names = pipeline_entry[6] if len(pipeline_entry) > 6 else None
+        print(f"\n=== {entity} ===")
+
+        if not has_new_files(ENDPOINT, bucket, table_name, base_layer):
+            print(f"No new files in bronze for {table_name}, skipping")
+            write_pipeline_metadata_event(
+                ENDPOINT,
+                pipeline_stage="bronze_to_silver",
+                entity=entity,
+                action="skip_empty",
+                row_count=0,
+                target=silver_name,
+                status="skipped",
+            )
+            continue
+
+        try:
+            raw = read_bronze_table(spark, table_name=table_name, bucket=bucket, base_layer=base_layer)
+            raw_count = raw.count()
+
+            print(f"Read {raw_count} records")
+            process_entity(spark, raw, transform_fn, entity, silver_name, ENDPOINT, bronze_table_name=table_name, split_names=split_names)
+
+        except Exception as e:
+            print(f"ERROR: {e}")
+            write_pipeline_metadata_event(
+                ENDPOINT,
+                pipeline_stage="bronze_to_silver",
+                entity=entity,
+                action="failed",
+                status="failed",
+                error_message=str(e),
+            )
+
+    spark.stop()
+    print("\n=== Done ===")
+
+
+if __name__ == "__main__":
+    run_all()

@@ -1,15 +1,4 @@
 relationships:
-  customer_to_usage:
-    label: Customer to Usage
-    description: Links customers to their daily usage
-    from_entity: customer
-    to_entity: usage
-    type: one_to_many
-    join:
-      from_table: gold.customer_360
-      to_table: gold.customer_usage_daily
-      condition: customer.phone_number = usage.phone_number
-
   customer_to_fraud:
     label: Customer to Fraud
     description: Links customers to fraud events
@@ -85,7 +74,7 @@ relationships:
     join:
       from_table: gold.dim_date
       to_table: gold.network_performance
-      condition: date.date_sk = cell_site.date_sk
+      condition: date.full_date = cell_site.performance_date
 
   date_to_usage:
     label: Date to Usage
@@ -109,21 +98,11 @@ relationships:
       to_table: gold.fraud_monitoring
       condition: date.date_sk = fraud_event.date_sk
 
-  geography_to_customer:
-    label: Geography to Customer
-    description: Links geography to customer profiles
-    from_entity: geography
-    to_entity: customer
-    type: one_to_many
-    join:
-      condition: geography.city = customer.city
-
-  geography_to_network:
-    label: Geography to Network
-    description: Links geography to cell site performance
-    from_entity: geography
+  city_to_customer:
+    label: City to Customer
+    description: Links city to customer profiles
+    from_entity: customer
     to_entity: cell_site
     type: one_to_many
     join:
-      from_table: gold.network_performance
-      condition: geography.city = cell_site.city AND geography.region = cell_site.region
+      condition: customer.city = cell_site.city

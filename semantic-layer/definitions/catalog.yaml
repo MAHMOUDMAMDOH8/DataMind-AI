@@ -104,12 +104,6 @@ tables:
     grain: one row per agent
     columns: [agent_sk, agent_id, name, department, city, status]
 
-  dim_cell_site:
-    label: Cell Site Dimension
-    description: Network cell site master data
-    grain: one row per cell site
-    columns: [cell_sk, cell_id, city, site_name, latitude, longitude]
-
 compliance:
   pii_columns:
     - dim_user.phone_number
