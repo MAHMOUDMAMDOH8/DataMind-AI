@@ -1,0 +1,145 @@
+# ── OpenMetadata Profiler: Gold Layer ─────────────────────────────────────────
+# Runs column profiling on all 9 Gold mart tables.
+# Gold tables are business-critical — full 100% scan for accurate stats.
+#
+# Gold tables profiled:
+#   customer_360, daily_revenue, customer_usage_daily,
+#   payment_analytics, recharge_analytics, roaming_analytics,
+#   network_performance, support_analytics, fraud_monitoring
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata profile -c /opt/workflows/profiler-gold.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: IcebergProfiler
+  serviceName: datamind-iceberg-gold
+  sourceConfig:
+    config:
+      type: Profiler
+      generateSampleData: true
+      timeoutSeconds: 600
+      databaseFilterPattern:
+        includes:
+          - "gold"
+      tableConfig:
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.customer_360"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: churn_score
+            - columnName: customer_lifetime_value
+            - columnName: total_revenue
+            - columnName: total_calls
+            - columnName: total_sms
+            - columnName: total_data_usage_mb
+            - columnName: total_payments
+            - columnName: total_recharges
+
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.daily_revenue"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: total_revenue
+            - columnName: call_revenue
+            - columnName: sms_revenue
+            - columnName: roaming_revenue
+            - columnName: payment_revenue
+            - columnName: recharge_revenue
+            - columnName: successful_payments
+            - columnName: failed_payments
+            - columnName: active_customers
+
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.customer_usage_daily"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: calls_count
+            - columnName: total_call_duration_seconds
+            - columnName: sms_count
+            - columnName: total_data_usage_mb
+            - columnName: roaming_usage_mb
+
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.payment_analytics"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: transaction_count
+            - columnName: successful_transactions
+            - columnName: failed_transactions
+            - columnName: total_amount
+            - columnName: avg_transaction_amount
+            - columnName: success_rate
+
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.recharge_analytics"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: recharge_count
+            - columnName: total_recharge_amount
+            - columnName: avg_recharge_amount
+            - columnName: unique_customers
+
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.roaming_analytics"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: roaming_events
+            - columnName: unique_customers
+            - columnName: total_duration_seconds
+            - columnName: total_data_used_mb
+            - columnName: total_roaming_charges
+
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.network_performance"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: avg_active_subscribers
+            - columnName: avg_throughput_mbps
+            - columnName: avg_cpu_utilization_pct
+            - columnName: avg_memory_utilization_pct
+            - columnName: avg_mos_score
+            - columnName: avg_jitter_ms
+            - columnName: avg_packet_loss_pct
+            - columnName: avg_latency_ms
+            - columnName: network_health_score
+
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.support_analytics"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: tickets_created
+            - columnName: tickets_resolved
+            - columnName: complaints_received
+            - columnName: avg_resolution_time_seconds
+            - columnName: avg_satisfaction_score
+            - columnName: escalation_rate
+            - columnName: first_call_resolution_rate
+
+        - fullyQualifiedName: "datamind-iceberg-gold.gold.fraud_monitoring"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: suspicious_calls
+            - columnName: suspicious_sessions
+            - columnName: avg_risk_score
+            - columnName: max_risk_score
+            - columnName: fraud_events
+
+processor:
+  type: orm-profiler
+  config: {}
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: profile-gold-tables
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"

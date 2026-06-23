@@ -1,0 +1,52 @@
+# ── OpenMetadata Ingestion: Airflow Pipelines ─────────────────────────────────
+# Registers Airflow DAGs as Pipeline entities in OpenMetadata.
+#
+# Target Airflow: the embedded Airflow inside openmetadata-ingestion container
+# (not the main Airflow webserver on port 8083).
+#
+# DAGs that get registered as Pipeline entities:
+#   - bronze_to_silver  (schedule: */15 * * * *)
+#   - silver_to_gold    (schedule: triggered by bronze_to_silver)
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata ingest -c /opt/workflows/airflow-pipelines.yaml
+#
+# NOTE: To capture lineage from the MAIN Airflow (port 8083), install
+#   openmetadata-ingestion[airflow] into the airflow images and configure
+#   the Lineage Backend in airflow.cfg. This config connects to the
+#   OM-embedded Airflow (Backend connection type).
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: Airflow
+  serviceName: datamind-airflow
+  serviceConnection:
+    config:
+      type: Airflow
+      hostPort: "http://openmetadata-ingestion:8080"
+      numberOfStatus: 10          # last N DAG run statuses to capture
+      connection:
+        type: Backend             # native backend connection (no REST API needed)
+  sourceConfig:
+    config:
+      type: PipelineMetadata
+      includeTag: true
+      markDeletedPipelines: true
+      pipelineFilterPattern:
+        includes:
+          - "bronze_to_silver"
+          - "silver_to_gold"
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: ingest-airflow-pipelines
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"

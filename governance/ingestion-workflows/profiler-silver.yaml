@@ -1,0 +1,123 @@
+# ── OpenMetadata Profiler: Silver Layer ───────────────────────────────────────
+# Runs column profiling on all 13 Silver Iceberg tables.
+#
+# Silver tables profiled:
+#   crm_customer_registrations, crm_profile_updates,
+#   billing_calls, billing_sms,
+#   network_data_sessions, network_metrics, qos_reports,
+#   payments, recharges, roaming_events,
+#   support_tickets, complaints, ticket_resolutions
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata profile -c /opt/workflows/profiler-silver.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: IcebergProfiler
+  serviceName: datamind-iceberg-silver
+  sourceConfig:
+    config:
+      type: Profiler
+      generateSampleData: true
+      timeoutSeconds: 600
+      databaseFilterPattern:
+        includes:
+          - "silver"
+      schemaFilterPattern:
+        includes:
+          - ".*"
+      tableFilterPattern:
+        includes:
+          - ".*"
+      tableConfig:
+        # High-volume tables: 50% sample
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.billing_calls"
+          profileSample: 50
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: call_duration_seconds
+            - columnName: amount
+            - columnName: risk_score
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.billing_sms"
+          profileSample: 50
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.network_data_sessions"
+          profileSample: 50
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: data_used_mb
+            - columnName: session_duration_seconds
+            - columnName: risk_score
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.network_metrics"
+          profileSample: 80
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: total_throughput_mbps
+            - columnName: cpu_utilization_pct
+            - columnName: memory_utilization_pct
+            - columnName: active_subscribers
+        # Full scan on smaller tables
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.crm_customer_registrations"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.crm_profile_updates"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.qos_reports"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: mos_score_avg
+            - columnName: jitter_ms_avg
+            - columnName: packet_loss_pct_avg
+            - columnName: latency_ms_avg
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.payments"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: payment_amount
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.recharges"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: recharge_amount
+            - columnName: balance_before
+            - columnName: balance_after
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.roaming_events"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: roaming_charges
+            - columnName: duration_seconds
+            - columnName: data_used_mb
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.support_tickets"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.complaints"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-silver.silver.ticket_resolutions"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+          columnConfig:
+            - columnName: resolution_time_seconds
+            - columnName: wait_time_seconds
+            - columnName: satisfaction_score
+
+processor:
+  type: orm-profiler
+  config: {}
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: profile-silver-tables
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"

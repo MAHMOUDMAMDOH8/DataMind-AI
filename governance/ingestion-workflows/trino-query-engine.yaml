@@ -1,0 +1,56 @@
+# ── OpenMetadata Ingestion: Trino Query Engine ────────────────────────────────
+# Registers Trino as a query service in OpenMetadata.
+# Trino connects to Iceberg via Nessie catalog (see trino/catalog/).
+#
+# Internal docker port: trino:8080  (exposed to host as 8085)
+# Catalog: iceberg  (covers bronze/silver/gold via Nessie)
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata ingest -c /opt/workflows/trino-query-engine.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: Trino
+  serviceName: datamind-trino
+  serviceConnection:
+    config:
+      type: Trino
+      username: admin
+      hostPort: "trino:8080"
+      catalog: iceberg
+      # No authentication needed in local dev; add auth config for prod.
+      connectionOptions: {}
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      databaseFilterPattern:
+        includes:
+          - "iceberg"
+      schemaFilterPattern:
+        includes:
+          - "bronze"
+          - "silver"
+          - "gold"
+        excludes:
+          - "information_schema"
+      tableFilterPattern:
+        includes:
+          - ".*"
+      includeViews: true
+      markDeletedTables: true
+      queryLogDuration: 1        # days of query history to pull for usage stats
+      resultLimit: 1000
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: ingest-trino-engine
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"

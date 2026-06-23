@@ -1,0 +1,63 @@
+# ── OpenMetadata Ingestion: Kafka Topics ─────────────────────────────────────
+# Registers all 9 Kafka topics with Avro schemas from Schema Registry.
+#
+# Topics (9):
+#   customer_topic      — CRM registration/profile updates
+#   calls_topic         — CDR records (Billing)
+#   sms_topic           — SMS events (Billing)
+#   data_usage_topic    — Data sessions (NMS)
+#   network_metrics_topic — Network KPIs (NMS)
+#   payments_topic      — Payment transactions
+#   recharge_topic      — Wallet top-ups
+#   roaming_topic       — International roaming events
+#   tickets_topic       — Support tickets/complaints/resolutions
+#
+# Note: Uses internal Docker network hostname (kafka:29092) not localhost:9092.
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata ingest -c /opt/workflows/kafka-topics.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: Kafka
+  serviceName: datamind-kafka
+  serviceConnection:
+    config:
+      type: Kafka
+      bootstrapServers: "kafka:29092"
+      schemaRegistryURL: "http://schema-registry:8081"
+      schemaRegistryConfig:
+        # Schema Registry uses BACKWARD compatibility per arch/3-source-systems.md
+        sasl.mechanism: PLAIN
+      consumerConfig:
+        session.timeout.ms: "30000"
+  sourceConfig:
+    config:
+      type: MessagingMetadata
+      topicFilterPattern:
+        includes:
+          - "customer_topic"
+          - "calls_topic"
+          - "sms_topic"
+          - "data_usage_topic"
+          - "network_metrics_topic"
+          - "payments_topic"
+          - "recharge_topic"
+          - "roaming_topic"
+          - "tickets_topic"
+      generateSampleData: true
+      historyPopupDelay: 500
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: ingest-kafka-topics
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"

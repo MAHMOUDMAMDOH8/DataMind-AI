@@ -1,0 +1,67 @@
+# ── OpenMetadata Ingestion: Iceberg Gold Layer ───────────────────────────────
+# Registers all 9 gold mart tables from the Nessie catalog into OpenMetadata.
+#
+# Gold tables:
+#   customer_360, daily_revenue, customer_usage_daily,
+#   payment_analytics, recharge_analytics, roaming_analytics,
+#   network_performance, support_analytics, fraud_monitoring
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata ingest -c /opt/workflows/iceberg-gold.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: Iceberg
+  serviceName: datamind-iceberg-gold
+  serviceConnection:
+    config:
+      type: Iceberg
+      catalog:
+        name: nessie
+        connection:
+          type: IcebergNessieCatalog
+          catalogURL: http://nessie:19120/api/v1
+          warehouseLocation: s3://warehouse/
+          configProperties:
+            s3.endpoint: http://minio:9000
+            s3.access-key-id: admin
+            s3.secret-access-key: password
+            s3.path-style-access: "true"
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      databaseFilterPattern:
+        includes:
+          - "gold"
+      schemaFilterPattern:
+        includes:
+          - ".*"
+      tableFilterPattern:
+        includes:
+          - "customer_360"
+          - "daily_revenue"
+          - "customer_usage_daily"
+          - "payment_analytics"
+          - "recharge_analytics"
+          - "roaming_analytics"
+          - "network_performance"
+          - "support_analytics"
+          - "fraud_monitoring"
+      includeViews: false
+      includeTags: true
+      markDeletedTables: true
+      autoClassification: true
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: ingest-iceberg-gold
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"

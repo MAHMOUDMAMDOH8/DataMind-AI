@@ -1,0 +1,59 @@
+# ── OpenMetadata Ingestion: Iceberg Bronze Layer ──────────────────────────────
+# Registers all 9 bronze tables from the Nessie catalog into OpenMetadata.
+#
+# Bronze tables:
+#   customers, calls, sms, data_usage, network_metrics,
+#   payments, recharge, roaming, tickets
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata ingest -c /opt/workflows/iceberg-bronze.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: Iceberg
+  serviceName: datamind-iceberg-bronze
+  serviceConnection:
+    config:
+      type: Iceberg
+      catalog:
+        name: nessie
+        connection:
+          type: IcebergNessieCatalog
+          catalogURL: http://nessie:19120/api/v1
+          warehouseLocation: s3://warehouse/
+          configProperties:
+            s3.endpoint: http://minio:9000
+            s3.access-key-id: admin
+            s3.secret-access-key: password
+            s3.path-style-access: "true"
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      databaseFilterPattern:
+        includes:
+          - "bronze"
+      schemaFilterPattern:
+        includes:
+          - ".*"
+      tableFilterPattern:
+        includes:
+          - ".*"
+      includeViews: false
+      includeTags: true
+      markDeletedTables: true
+      autoClassification: true
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: ingest-iceberg-bronze
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      # Get JWT from OM UI → Settings → Bots → ingestion-bot → Token
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"

@@ -1,0 +1,55 @@
+# ── OpenMetadata Ingestion: Shared PostgreSQL ─────────────────────────────────
+# Registers the shared-postgres instance that serves:
+#   - nessie DB  (Nessie version store)
+#   - airflow DB (Airflow metadata)
+#
+# Credentials from .env:
+#   POSTGRES_ROOT_PASSWORD=rootpassword
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata ingest -c /opt/workflows/postgres-shared.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: Postgres
+  serviceName: datamind-postgres
+  serviceConnection:
+    config:
+      type: Postgres
+      username: root
+      password: rootpassword
+      hostPort: "shared-postgres:5432"
+      database: postgres
+      sslMode: disable
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      databaseFilterPattern:
+        includes:
+          - "nessie"
+          - "airflow"
+          - "openmetadata_db"
+      schemaFilterPattern:
+        excludes:
+          - "pg_catalog"
+          - "information_schema"
+          - "pg_toast"
+      tableFilterPattern:
+        includes:
+          - ".*"
+      includeViews: true
+      markDeletedTables: true
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: ingest-postgres-shared
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"

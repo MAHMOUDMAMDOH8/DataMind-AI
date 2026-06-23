@@ -1,0 +1,76 @@
+# ── OpenMetadata Profiler: Bronze Layer ───────────────────────────────────────
+# Runs column profiling on all 9 Bronze Iceberg tables.
+# Captures: row counts, null rates, distinct values, min/max/avg, distributions.
+#
+# Bronze tables profiled:
+#   customers, calls, sms, data_usage, network_metrics,
+#   payments, recharge, roaming, tickets
+#
+# Run inside the openmetadata-ingestion container:
+#   metadata profile -c /opt/workflows/profiler-bronze.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  type: IcebergProfiler
+  serviceName: datamind-iceberg-bronze
+  sourceConfig:
+    config:
+      type: Profiler
+      generateSampleData: true
+      timeoutSeconds: 600
+      databaseFilterPattern:
+        includes:
+          - "bronze"
+      schemaFilterPattern:
+        includes:
+          - ".*"
+      tableFilterPattern:
+        includes:
+          - ".*"
+      # Profile 50% sample on large tables for performance
+      tableConfig:
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.calls"
+          profileSample: 50
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.sms"
+          profileSample: 50
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.data_usage"
+          profileSample: 50
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.network_metrics"
+          profileSample: 80
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.customers"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.payments"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.recharge"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.roaming"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+        - fullyQualifiedName: "datamind-iceberg-bronze.bronze.tickets"
+          profileSample: 100
+          profileSampleType: PERCENTAGE
+
+processor:
+  type: orm-profiler
+  config: {}
+
+sink:
+  type: metadata-rest
+  config: {}
+
+ingestionPipelineName: profile-bronze-tables
+
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: http://openmetadata-server:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: "REPLACE_WITH_INGESTION_BOT_JWT"
