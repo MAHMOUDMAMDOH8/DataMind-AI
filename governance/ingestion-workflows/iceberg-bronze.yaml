@@ -15,17 +15,16 @@ source:
   serviceConnection:
     config:
       type: Iceberg
-      catalog:
-        name: nessie
-        connection:
-          type: IcebergNessieCatalog
-          catalogURL: http://nessie:19120/api/v1
-          warehouseLocation: s3://warehouse/
-          configProperties:
-            s3.endpoint: http://minio:9000
-            s3.access-key-id: admin
-            s3.secret-access-key: password
-            s3.path-style-access: "true"
+      connection:
+        type: RestCatalog
+        uri: http://nessie:19120/api/v1
+        warehouse: s3://warehouse/
+        fileSystem:
+          type: S3
+          accessKeyId: admin
+          secretAccessKey: password
+          endpoint: http://minio:9000
+          pathStyleAccess: true
   sourceConfig:
     config:
       type: DatabaseMetadata
