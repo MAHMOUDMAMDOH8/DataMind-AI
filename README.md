@@ -135,7 +135,7 @@ Use `--clean` to disable intentional data-quality defects in generated events.
 
 Optional: copy `.env.example` to `.env` for local URL defaults.
 
-### 5. One-shot Spark (without Airflow)
+### 5. One-shot Spark 
 
 Run the Spark ETL pipelines directly for development/testing without Airflow.
 
@@ -169,17 +169,6 @@ docker exec spark-iceberg spark-submit --master local[*] /home/iceberg/jobs/silv
 docker exec spark-iceberg spark-submit --master local[*] /home/iceberg/jobs/silver_to_gold/marts/customer_360.py
 ```
 
-#### Prerequisite
-
-Ensure the `iceberg-rest` container is running before any Spark job:
-
-```bash
-docker start iceberg-rest
-```
-
-Check with `docker ps | findstr iceberg-rest`.
-
----
 
 ### Repository layout
 
