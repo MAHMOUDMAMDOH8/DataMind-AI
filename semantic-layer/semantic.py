@@ -133,11 +133,12 @@ class SemanticLayer:
 
     def execute_query(self, sql: str) -> dict:
         sql = sql.strip().rstrip(";")
-        if not sql.upper().startswith("SELECT"):
+        if not sql.upper().startswith("SELECT") and not sql.upper().startswith("WITH"):
             return {"error": "Only SELECT queries are permitted", "sql": sql}
         forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]
+        import re
         for keyword in forbidden:
-            if keyword in sql.upper():
+            if re.search(rf"\b{keyword}\b", sql.upper()):
                 return {"error": f"Query contains forbidden keyword: {keyword}", "sql": sql}
         try:
             conn = trino_connect(
