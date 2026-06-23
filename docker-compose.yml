@@ -535,7 +535,7 @@ services:
         reservations:
           memory: 256m
     healthcheck:
-      test: ["CMD-SHELL", "mysql --user=root --password=${OPENMETADATA_MYSQL_ROOT_PASSWORD} --silent --execute 'use openmetadata_db'"]
+      test: ["CMD-SHELL", "mysqladmin ping -u root --password=${OPENMETADATA_MYSQL_ROOT_PASSWORD} || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 10
