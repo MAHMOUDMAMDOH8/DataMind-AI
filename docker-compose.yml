@@ -133,16 +133,12 @@ services:
       kafka:
         condition: service_healthy
     ports:
-      - "8443:8443"
       - "8082:8080"
       - "6980:6980"
     environment:
-      SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_ADMIN_USERNAME}
-      SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_ADMIN_PASSWORD}
-      NIFI_WEB_HTTPS_PORT: 8443
       NIFI_WEB_HTTP_PORT: 8080
-      NIFI_WEB_HTTPS_HOST: 0.0.0.0
       NIFI_WEB_HTTP_HOST: 0.0.0.0
+      NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER: single-user-provider
       NIFI_JVM_HEAP_INIT: 512m
       NIFI_JVM_HEAP_MAX: 2g
     volumes:
@@ -338,7 +334,7 @@ services:
       AWS_REGION: ${AWS_REGION}
     ports:
       - "8888:8888"
-      - "8080:8080"
+      - "8084:8080"
       - "10000:10000"
       - "10001:10001"
     networks:
@@ -427,6 +423,7 @@ services:
       - |
         mkdir -p /opt/airflow/{logs,dags,plugins}
         chown -R 50000:0 /opt/airflow
+        chmod -R 777 /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
         airflow db migrate
         airflow users create --role Admin --username airflow --password airflow \
           --firstname DataMind --lastname Admin --email admin@datamind.ai || true
@@ -455,6 +452,7 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
     user: "50000:0"
     networks:
       - data_network
@@ -493,6 +491,7 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
     user: "50000:0"
     networks:
       - data_network
@@ -511,8 +510,7 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
-
-  # ── Governance (OpenMetadata) ───────────────────────────────────────────────
+ # ── Governance (OpenMetadata) ───────────────────────────────────────────────
 
   openmetadata-mysql:
     image: docker.getcollate.io/openmetadata/db:1.5.0
@@ -535,7 +533,7 @@ services:
         reservations:
           memory: 256m
     healthcheck:
-      test: ["CMD-SHELL", "mysql --user=root --password=${OPENMETADATA_MYSQL_ROOT_PASSWORD} --silent --execute 'use openmetadata_db'"]
+      test: ["CMD-SHELL", "mysqladmin ping -u root --password=${OPENMETADATA_MYSQL_ROOT_PASSWORD} || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 10
@@ -623,6 +621,11 @@ services:
       bash -c "rm -f /opt/airflow/*.pid && exec airflow standalone"
     env_file:
       - ./governance/openmetadata.env
+    environment:
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.session,airflow.api.auth.backend.basic_auth
+    volumes:
+      - openmetadata_airflow_data:/opt/airflow
+      - ./spark/jobs:/home/iceberg/jobs:ro
     ports:
       - "8080:8080"
     depends_on:
@@ -632,6 +635,7 @@ services:
       - data_network
     restart: unless-stopped
     logging: *logging
+
 
   # ── Semantic Layer (AI-powered analytics) ────────────────────────────────────
 
@@ -696,3 +700,4 @@ volumes:
   shared_postgres_data:      # replaces nessie_db_data + airflow_postgres_data
   openmetadata_mysql_data:
   openmetadata_es_data:
+  openmetadata_airflow_data:
