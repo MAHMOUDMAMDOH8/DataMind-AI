@@ -25,3 +25,5 @@ for mart in "${MARTS[@]}"; do
 done
 
 echo "=== Done ==="
+
+spark-submit --master local[*] "/home/iceberg/jobs/silver_to_gold/marts/customer_360.py
