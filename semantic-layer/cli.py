@@ -15,6 +15,8 @@ from rich.prompt import Prompt
 
 from rich import box
 from rich.style import Style
+from rich.align import Align
+from rich.rule import Rule
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.formatted_text import HTML
@@ -59,10 +61,23 @@ EXAMPLES = [
 ]
 
 
+VERSION = "1.0.0"
+
+
 def print_logo():
     console.clear()
     console.print()
-    console.print(Panel(LOGO.strip(), border_style="cyan", box=box.HEAVY, style="on grey11"))
+    subtitle = Text.assemble(
+        ("AI-Powered Semantic Query Engine", "italic bright_black"),
+        "   ",
+        (f"v{VERSION}", "dim"),
+        justify="center",
+    )
+    body = Text.from_markup(LOGO.strip())
+    console.print(Panel(
+        Align.center(Text.assemble(body, "\n", subtitle)),
+        border_style="cyan", box=box.HEAVY, style="on grey11", padding=(1, 2),
+    ))
     console.print()
 
 
@@ -95,6 +110,32 @@ def extract_sql(text):
     return None
 
 
+def is_number(v):
+    if v is None:
+        return False
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return True
+    try:
+        float(str(v))
+        return True
+    except ValueError:
+        return False
+
+
+def format_cell(v):
+    if v is None:
+        return "[dim italic]NULL[/dim italic]"
+    if isinstance(v, bool):
+        return str(v)
+    if isinstance(v, int):
+        return f"{v:,}"
+    if isinstance(v, float):
+        return f"{v:,.2f}" if not v.is_integer() else f"{v:,.0f}"
+    return str(v)
+
+
 def print_table(columns, rows, max_rows=20):
     table = Table(
         box=box.ROUNDED,
@@ -102,21 +143,27 @@ def print_table(columns, rows, max_rows=20):
         header_style="bold bright_cyan",
         show_edge=True,
         padding=(0, 2),
+        row_styles=["none", "on grey11"],
     )
-    for col in columns:
-        table.add_column(col)
-        
+
     display_rows = rows[:max_rows]
-    for i, row in enumerate(display_rows):
-        style = "white" if i % 2 == 0 else "bright_white"
-        table.add_row(*[str(c) if c is not None else "NULL" for c in row], style=style)
-        
+    numeric_cols = [
+        all(is_number(r[i]) for r in display_rows if r[i] is not None)
+        for i in range(len(columns))
+    ] if display_rows else [False] * len(columns)
+
+    for col, is_num in zip(columns, numeric_cols):
+        table.add_column(col, justify="right" if is_num else "left", style="bright_green" if is_num else "bright_white")
+
+    for row in display_rows:
+        table.add_row(*[format_cell(c) for c in row])
+
     if rows:
         console.print(table)
         if len(rows) > max_rows:
             console.print(f"  [dim]Showing {max_rows} of {len(rows)} rows - use /export to see all[/dim]")
     else:
-        console.print("  [dim]no results[/dim]")
+        console.print(Panel("[dim]No results[/dim]", border_style="dim", box=box.SIMPLE))
 
 def plot_results(columns, rows):
     if len(columns) != 2 or not rows:
@@ -147,19 +194,30 @@ def plot_results(columns, rows):
         pass
 
 
+HELP_COMMANDS = [
+    ("/help", "Show this help"),
+    ("/exit, /quit", "Exit the chat"),
+    ("/clear", "Clear screen and reset conversation"),
+    ("/context", "Show full semantic context"),
+    ("/metrics", "List all metrics"),
+    ("/examples", "Show example questions"),
+    ("/explain <q>", "Explain SQL without running it"),
+    (r"/export \[file]", "Export last query to CSV"),
+    ("/multiline", "Toggle multiline input mode"),
+    ("/stats", "Show session statistics"),
+    ("/model", "Show model info"),
+]
+
+
 def print_help():
+    table = Table(box=None, show_header=False, padding=(0, 2), style="on grey11")
+    table.add_column("", style="bold green", no_wrap=True)
+    table.add_column("", style="dim")
+    for cmd, desc in HELP_COMMANDS:
+        table.add_row(cmd, desc)
     console.print(Panel(
-        "[bold cyan]Commands[/bold cyan]\n\n"
-        "[green]/exit[/green]      [dim]Exit the chat[/dim]\n"
-        "[green]/clear[/green]     [dim]Clear screen[/dim]\n"
-        "[green]/context[/green]   [dim]Show full semantic context[/dim]\n"
-        "[green]/metrics[/green]   [dim]List all metrics[/dim]\n"
-        "[green]/examples[/green]  [dim]Show example questions[/dim]\n"
-        "[green]/explain[/green]   [dim]Explain SQL without running[/dim]\n"
-        "[green]/export[/green]    [dim]Export last query to CSV[/dim]\n"
-        "[green]/multiline[/green] [dim]Toggle multiline input mode[/dim]\n"
-        "[green]/model[/green]     [dim]Show model info[/dim]",
-        title="[bold]Help[/bold]", border_style="bright_blue", box=box.ROUNDED, style="on grey11", padding=(1, 2)
+        table,
+        title="[bold]Commands[/bold]", border_style="bright_blue", box=box.ROUNDED, style="on grey11", padding=(1, 2)
     ))
 
 
@@ -205,6 +263,8 @@ def chat():
     ))
 
     print_examples(sl)
+    console.print(Rule("[bold bright_green]Ready[/bold bright_green]", style="dim green"))
+    console.print()
 
     system_prompt = get_system_prompt(sl)
 
@@ -228,9 +288,15 @@ def chat():
     
     def get_bottom_toolbar():
         mode = "ON" if is_multiline else "OFF"
-        return HTML(f' <b>[Ctrl+C]</b> Exit | <b>/help</b> | Multiline: <b>{mode}</b> | Model: <style bg="ansiblue"> {OPENAI_MODEL} </style> ')
+        return HTML(
+            f' <b>Ctrl+C</b> exit  │  <b>/help</b>  │  '
+            f'Multiline: <b>{mode}</b>  │  Queries: <b>{stats["queries"]}</b>  │  '
+            f'<style bg="ansiblue"> {OPENAI_MODEL} </style> '
+        )
 
     is_multiline = False
+    stats = {"queries": 0, "errors": 0, "tokens": 0, "llm_time": 0.0, "sql_time": 0.0}
+    session_start = time.time()
 
     session = PromptSession(
         history=FileHistory(str(HISTORY_FILE)),
@@ -246,7 +312,6 @@ def chat():
                 console.print("  [dim](Multiline mode: press Esc then Enter to submit)[/dim]")
             question = session.prompt(HTML('<ansicyan>&gt;</ansicyan> '), multiline=is_multiline)
         except (EOFError, KeyboardInterrupt):
-            console.print("\n[dim]bye![/dim]")
             break
 
         question = question.strip()
@@ -271,10 +336,13 @@ def chat():
             console.print(Panel(system_prompt, title="Context", border_style="dim", box=box.SIMPLE))
             continue
         if cmd == "/model":
-            console.print(
-                f"  Provider  [dim]{OPENAI_BASE_URL or 'https://api.openai.com/v1'}[/dim]\n"
-                f"  Model     [cyan]{OPENAI_MODEL}[/cyan]"
-            )
+            console.print(Panel(
+                Text.assemble(
+                    ("Provider", "bright_cyan"), f"  {OPENAI_BASE_URL or 'https://api.openai.com/v1'}\n",
+                    ("Model", "bright_cyan"), "    ", (OPENAI_MODEL, "bold bright_white"),
+                ),
+                title="[bold]Model[/bold]", border_style="bright_blue", box=box.ROUNDED, style="on grey11", padding=(1, 2)
+            ))
             continue
         if cmd == "/multiline":
             is_multiline = not is_multiline
@@ -282,6 +350,20 @@ def chat():
             continue
         if cmd == "/metrics":
             print_metrics(sl)
+            continue
+        if cmd == "/stats":
+            uptime = time.time() - session_start
+            console.print(Panel(
+                Text.assemble(
+                    ("Session time", "bright_cyan"), f"  {uptime:.0f}s\n",
+                    ("Queries asked", "bright_cyan"), f"  {stats['queries']}\n",
+                    ("Errors", "bright_cyan"), f"  {stats['errors']}\n",
+                    ("Tokens used", "bright_cyan"), f"  {stats['tokens']:,}\n",
+                    ("Avg LLM time", "bright_cyan"), f"  {(stats['llm_time'] / stats['queries']) if stats['queries'] else 0:.1f}s\n",
+                    ("Avg SQL time", "bright_cyan"), f"  {(stats['sql_time'] / stats['queries']) if stats['queries'] else 0:.1f}s",
+                ),
+                title="[bold]Session Stats[/bold]", border_style="bright_cyan", box=box.ROUNDED, style="on grey11", padding=(1, 2)
+            ))
             continue
         if cmd.startswith("/export"):
             if not last_result or "columns" not in last_result or "rows" not in last_result:
@@ -307,15 +389,18 @@ def chat():
         else:
             prompt_q = question
 
+        stats["queries"] += 1
+
         console.print(Panel(
             f"[bold white]{question}[/bold white]",
+            title="[bold magenta]You[/bold magenta]", title_align="left",
             border_style="magenta", box=box.ROUNDED, padding=(0, 2), expand=False
         ))
-        
+
         messages.append({"role": "user", "content": prompt_q})
 
         llm_start = time.time()
-        with console.status("[cyan]thinking...[/cyan]", spinner="bouncingBar"):
+        with console.status("[cyan]Generating SQL...[/cyan]", spinner="dots12"):
             try:
                 response = client.chat.completions.create(
                     model=OPENAI_MODEL,
@@ -323,34 +408,42 @@ def chat():
                     temperature=0.1,
                 )
             except Exception as e:
+                stats["errors"] += 1
                 console.print(Panel(f"[red]{e}[/red]", title="[bold red]LLM Error[/bold red]", border_style="bold red", box=box.HEAVY))
                 continue
         llm_duration = time.time() - llm_start
+        stats["llm_time"] += llm_duration
 
         reply = response.choices[0].message.content
         messages.append({"role": "assistant", "content": reply})
+        if hasattr(response, 'usage') and response.usage:
+            stats["tokens"] += response.usage.total_tokens
 
         sql = extract_sql(reply)
         if sql:
             syntax = Syntax(sql, "sql", theme="ansi_dark", line_numbers=False)
-            console.print(Panel(syntax, border_style="green", box=box.SIMPLE, padding=(0, 1)))
+            console.print(Panel(syntax, title="[bold green]Generated SQL[/bold green]", title_align="left", border_style="green", box=box.SIMPLE, padding=(0, 1)))
 
             if explain_mode:
-                console.print(Panel(Markdown(reply), border_style="blue", box=box.SIMPLE, padding=(0, 1)))
+                console.print(Panel(Markdown(reply), title="[bold blue]Explanation[/bold blue]", title_align="left", border_style="blue", box=box.SIMPLE, padding=(0, 1)))
                 info = f"  [dim]LLM: {llm_duration:.1f}s[/dim]"
                 if hasattr(response, 'usage') and response.usage:
                     info += f"  [dim]{response.usage.total_tokens} tokens[/dim]"
                 console.print(info)
                 messages[-2]["content"] = question
+                console.print(Rule(style="dim"))
                 continue
 
-            sql_start = time.time()
-            result = sl.execute_query(sql)
-            sql_duration = time.time() - sql_start
-            
+            with console.status("[cyan]Running query...[/cyan]", spinner="dots12"):
+                sql_start = time.time()
+                result = sl.execute_query(sql)
+                sql_duration = time.time() - sql_start
+            stats["sql_time"] += sql_duration
+
             last_result = result
-            
+
             if "error" in result:
+                stats["errors"] += 1
                 console.print(Panel(f"[red]{result['error']}[/red]", title="[bold red]SQL Error[/bold red]", border_style="bold red", box=box.HEAVY))
             else:
                 console.print()
@@ -363,15 +456,15 @@ def chat():
                 console.print(f"  {info}")
         else:
             console.print()
-            console.print(Panel(Markdown(reply), border_style="blue", box=box.SIMPLE, padding=(0, 1)))
+            console.print(Panel(Markdown(reply), title="[bold blue]DataMind[/bold blue]", title_align="left", border_style="blue", box=box.SIMPLE, padding=(0, 1)))
             info = f"  [dim]LLM: {llm_duration:.1f}s[/dim]"
             if hasattr(response, 'usage') and response.usage:
                 info += f"  [dim]{response.usage.total_tokens} tokens[/dim]"
             console.print(info)
 
-        console.print("  [dim]" + "-" * 50 + "[/dim]")
+        console.print(Rule(style="dim"))
 
-    console.print("  [dim]" + "-" * 50 + "[/dim]")
+    console.print(f"\n  [dim]{stats['queries']} queries answered this session — bye![/dim]\n")
 
 
 def ask(question):
